@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) return json({ error: "Kunci Gemini belum dipasang" }, 500);
   // urutan model: utama, lalu cadangan bila model sedang penuh atau tidak tersedia
-  const models = (Deno.env.get("GEMINI_MODELS") || "gemini-flash-lite-latest,gemini-flash-latest,gemini-2.5-flash-lite,gemini-2.5-flash")
+  const models = (Deno.env.get("GEMINI_MODELS") || "gemini-3.1-flash-lite,gemini-3.8-flash,gemini-flash-lite-latest,gemini-flash-latest")
     .split(",").map((m) => m.trim()).filter(Boolean);
   const payload = JSON.stringify({
     contents: [{ parts: [{ inline_data: { mime_type: mime, data: image } }, { text: PROMPT }] }],
