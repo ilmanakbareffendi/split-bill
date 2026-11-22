@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#f4f8f3">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'><rect width='16' height='16' fill='%231b1b2f'/><rect x='2' y='2' width='12' height='12' fill='%23ffc400'/><rect x='10' y='4' width='2' height='8' fill='%23d9a300'/><rect x='5' y='5' width='2' height='2' fill='%231b1b2f'/><rect x='9' y='9' width='2' height='2' fill='%231b1b2f'/><rect x='5' y='9' width='2' height='2' fill='%231b1b2f'/><rect x='7' y='7' width='2' height='2' fill='%231b1b2f'/><rect x='9' y='5' width='2' height='2' fill='%231b1b2f'/></svg>">
 <link rel="preload" href="fonts/press-start-2p.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=20261122c">
+<link rel="stylesheet" href="style.css?v=20261122d">
 </head>
 <body>
 <div class="wrap">
@@ -20,8 +20,8 @@
   <div><div class="saving" id="saving"></div><button id="barPay" class="gold">BAYAR ▶</button></div>
 </div></div>
 
-<script src="avatars.js?v=20261122c"></script>
-<script src="common.js?v=20261122c"></script>
+<script src="avatars.js?v=20261122d"></script>
+<script src="common.js?v=20261122d"></script>
 <script>
 const code = (new URLSearchParams(location.search).get("b") || "").toUpperCase().trim();
 let token = store.get("sb_token");
@@ -165,7 +165,8 @@ function renderMain(pulseId) {
   const adjLabel = bill.adjust > 0 ? "pajak & service" : bill.adjust < 0 ? "diskon" : "";
   const saved = { ...bill }; bill = lb; let h = head(); bill = saved;
 
-  if (bill.locked) h += `<div class="notice"><span>🔒</span><div><b>TAGIHAN DIKUNCI</b>Pilihan tidak bisa diubah lagi.</div></div>`;
+  if (bill.done_at) h += `<div class="notice ok"><span>🏁</span><div><b>TAGIHAN SELESAI</b>Host sudah menutup tagihan ini. Terima kasih sudah patungan!</div></div>`;
+  else if (bill.locked) h += `<div class="notice"><span>🔒</span><div><b>TAGIHAN DIKUNCI</b>Pilihan tidak bisa diubah lagi.</div></div>`;
   h += `<div class="card"><span class="label">AMBIL ITEMMU</span>
         <div class="row between" style="margin-top:6px"><div class="small muted">Centang yang kamu makan atau minum. Patungan? Centang juga, harganya dibagi rata otomatis.</div></div>`;
   for (const it of lb.items) {

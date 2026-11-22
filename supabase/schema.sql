@@ -60,6 +60,7 @@ create table if not exists public.sb_items (
 create index if not exists sb_items_bill on public.sb_items (bill_id);
 
 alter table public.sb_bills add column if not exists host_id uuid references public.sb_people on delete set null;
+alter table public.sb_bills add column if not exists done_at timestamptz;
 create index if not exists sb_bills_host on public.sb_bills (host_id);
 
 create table if not exists public.sb_members (
@@ -165,7 +166,7 @@ begin
     'unclaimed', v_unclaimed, 'unclaimed_owe', round(v_unclaimed * v_factor),
     'payer_name', b.payer_name, 'payment_info', b.payment_info, 'locked', b.locked,
     'payer_phone', case when p_admin then b.payer_phone end,
-    'created_at', b.created_at, 'host_id', b.host_id,
+    'created_at', b.created_at, 'host_id', b.host_id, 'done_at', b.done_at,
     'items', v_items, 'members', v_members);
 end $$;
 
@@ -342,7 +343,7 @@ begin
   if not v_all and v_me is null then raise exception 'Sesi habis, silakan masuk lagi'; end if;
   return coalesce((select jsonb_agg(jsonb_build_object(
       'code', b.code, 'title', b.title, 'place', b.place, 'bill_date', b.bill_date,
-      'total', b.total, 'locked', b.locked, 'created_at', b.created_at,
+      'total', b.total, 'locked', b.locked, 'created_at', b.created_at, 'done_at', b.done_at,
       'host', (select name from sb_people where id = b.host_id),
       'members', (select count(*) from sb_members m where m.bill_id = b.id),
       'lunas', (select count(*) from sb_members m join sb_people p on p.id = m.person_id
@@ -408,7 +409,8 @@ begin
   return sb_bill_json(b_id, true);
 end $$;
 
--- p_patch: kunci yang boleh: title, place, bill_date, total, payer_name, payer_phone, payment_info, locked
+-- p_patch: kunci yang boleh: title, place, bill_date, total, payer_name, payer_phone, payment_info, locked,
+-- done (true = tandai selesai sekaligus dikunci, false = buka lagi)
 create or replace function public.sb_admin_update_bill(p_master text, p_code text, p_patch jsonb)
 returns jsonb language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare b sb_bills := sb_manage_bill(p_master, p_code);
@@ -421,7 +423,10 @@ begin
     payer_name   = case when p_patch ? 'payer_name' then nullif(btrim(p_patch->>'payer_name'),'') else payer_name end,
     payer_phone  = case when p_patch ? 'payer_phone' then sb_norm_phone(p_patch->>'payer_phone') else payer_phone end,
     payment_info = case when p_patch ? 'payment_info' then nullif(btrim(p_patch->>'payment_info'),'') else payment_info end,
-    locked       = case when p_patch ? 'locked' then (p_patch->>'locked')::boolean else locked end
+    locked       = case when p_patch ? 'done' then (p_patch->>'done')::boolean
+                        when p_patch ? 'locked' then (p_patch->>'locked')::boolean else locked end,
+    done_at      = case when p_patch ? 'done' then (case when (p_patch->>'done')::boolean then now() end)
+                        when p_patch ? 'locked' and not (p_patch->>'locked')::boolean then null else done_at end
   where id = b.id;
   return sb_bill_json(b.id, true);
 end $$;
