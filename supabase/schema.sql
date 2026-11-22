@@ -165,7 +165,7 @@ begin
     'unclaimed', v_unclaimed, 'unclaimed_owe', round(v_unclaimed * v_factor),
     'payer_name', b.payer_name, 'payment_info', b.payment_info, 'locked', b.locked,
     'payer_phone', case when p_admin then b.payer_phone end,
-    'created_at', b.created_at,
+    'created_at', b.created_at, 'host_id', b.host_id,
     'items', v_items, 'members', v_members);
 end $$;
 

@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#f6f7f5">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='%230f7a55'/><text x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='700'>%25</text></svg>">
 <link rel="preload" href="fonts/press-start-2p.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=20261122a">
 <style>
   .billrow { display: block; text-decoration: none; color: inherit; }
   .stat { flex: 1; background: #fff; border: var(--b); border-radius: 10px; padding: 10px; box-shadow: 3px 3px 0 var(--ink); }
@@ -36,8 +36,8 @@
   <div id="app"><div class="spin"></div></div>
 </div>
 
-<script src="avatars.js"></script>
-<script src="common.js"></script>
+<script src="avatars.js?v=20261122a"></script>
+<script src="common.js?v=20261122a"></script>
 <script>
 const app = $("#app");
 // auth = kunci admin (semua tagihan) atau token sesi host (tagihan sendiri)
@@ -431,8 +431,11 @@ function bind() {
   app.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
     const it = bill.items.find(i => i.id === b.dataset.edit); editing = true;
     const row = $("#it-" + it.id);
-    row.innerHTML = `<div class="row ed grow" style="gap:6px"><input class="grow" id="eN" value="${esc(it.name)}"><span class="money sm" style="width:120px;flex:none"><input id="eP" inputmode="numeric" value="${fmtNum(Math.round(it.price))}"></span>
-      <button class="sm" id="eS">SIMPAN</button><button class="sm ghost" id="eC">BATAL</button></div>`;
+    row.innerHTML = `<div class="ed grow" style="background:var(--gold-soft);border:var(--b);border-radius:10px;padding:10px">
+      <label style="margin-top:0">NAMA ITEM</label><input id="eN" value="${esc(it.name)}">
+      <label>HARGA</label><div class="money"><input id="eP" inputmode="numeric" value="${fmtNum(Math.round(it.price))}"></div>
+      <div class="row" style="gap:8px;margin-top:12px"><button class="grow" id="eS">SIMPAN</button><button class="ghost grow" id="eC">BATAL</button></div></div>`;
+    $("#eN").focus();
     moneyInput($("#eP"));
     $("#eC").onclick = () => { editing = false; renderBill(); };
     $("#eS").onclick = () => { editing = false; act("sb_admin_item", { p_action: "update", p_item_id: it.id, p_name: $("#eN").value, p_price: parseInt($("#eP").value.replace(/\D/g, "")) }, "Item diperbarui"); };
