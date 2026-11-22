@@ -20,10 +20,13 @@ create table if not exists public.sb_people (
   phone text unique not null,
   name text not null,
   pin_hash text,
+  avatar text not null default 'koki',
   fails int not null default 0,
   locked_until timestamptz,
   created_at timestamptz not null default now()
 );
+
+alter table public.sb_people add column if not exists avatar text not null default 'koki';
 
 create table if not exists public.sb_sessions (
   token text primary key,
@@ -128,7 +131,7 @@ begin
 
   select coalesce(jsonb_agg(jsonb_build_object(
            'id', i.id, 'name', i.name, 'price', i.price,
-           'claimers', coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'name', p.name) order by p.name)
+           'claimers', coalesce((select jsonb_agg(jsonb_build_object('id', p.id, 'name', p.name, 'avatar', p.avatar) order by p.name)
                                    from sb_claims c join sb_people p on p.id = c.person_id
                                   where c.item_id = i.id), '[]'::jsonb)
          ) order by i.sort, i.name), '[]'::jsonb)
@@ -140,7 +143,7 @@ begin
      where c.bill_id = b.id group by c.person_id
   )
   select coalesce(jsonb_agg(jsonb_build_object(
-           'id', p.id, 'name', p.name, 'status', m.status,
+           'id', p.id, 'name', p.name, 'avatar', p.avatar, 'status', m.status,
            'subtotal', round(coalesce(s.s,0)),
            'owe', round(coalesce(s.s,0) * v_factor),
            'is_payer', (b.payer_phone is not null and p.phone = b.payer_phone),
@@ -165,11 +168,13 @@ end $$;
 create or replace function public.sb_ping() returns text
 language sql stable as $$ select 'ok'::text $$;
 
-create or replace function public.sb_join(p_code text, p_name text, p_phone text, p_pin text)
+drop function if exists public.sb_join(text, text, text, text);
+create or replace function public.sb_join(p_code text, p_name text, p_phone text, p_pin text, p_avatar text default null)
 returns jsonb language plpgsql security definer set search_path = public, extensions, pg_temp as $$
 declare
   b sb_bills; v_phone text := sb_norm_phone(p_phone); v_name text := btrim(coalesce(p_name,''));
   p sb_people; v_token text;
+  v_av text := case when p_avatar in ('koki','robo','boba','onigiri','kapi') then p_avatar end;
 begin
   select * into b from sb_bills where code = upper(btrim(coalesce(p_code,'')));
   if not found then return jsonb_build_object('error','Tagihan tidak ditemukan'); end if;
@@ -179,8 +184,8 @@ begin
 
   select * into p from sb_people where phone = v_phone for update;
   if not found then
-    insert into sb_people (phone, name, pin_hash)
-    values (v_phone, v_name, extensions.crypt(p_pin, extensions.gen_salt('bf', 8)))
+    insert into sb_people (phone, name, pin_hash, avatar)
+    values (v_phone, v_name, extensions.crypt(p_pin, extensions.gen_salt('bf', 8)), coalesce(v_av, 'koki'))
     returning * into p;
   else
     if p.locked_until is not null and p.locked_until > now() then
@@ -188,7 +193,7 @@ begin
     end if;
     if p.pin_hash is null then
       update sb_people set pin_hash = extensions.crypt(p_pin, extensions.gen_salt('bf', 8)),
-             name = v_name, fails = 0, locked_until = null where id = p.id;
+             name = v_name, avatar = coalesce(v_av, avatar), fails = 0, locked_until = null where id = p.id;
     elsif p.pin_hash <> extensions.crypt(p_pin, p.pin_hash) then
       update sb_people set fails = fails + 1,
              locked_until = case when fails + 1 >= 5 then now() + interval '15 minutes' end
@@ -196,7 +201,7 @@ begin
       update sb_people set fails = 0 where id = p.id and locked_until is not null;
       return jsonb_build_object('error','PIN salah untuk nomor ini. Lupa PIN? Minta admin meresetnya.');
     else
-      update sb_people set name = v_name, fails = 0, locked_until = null where id = p.id;
+      update sb_people set name = v_name, avatar = coalesce(v_av, avatar), fails = 0, locked_until = null where id = p.id;
     end if;
   end if;
 
@@ -207,7 +212,8 @@ begin
 
   v_token := encode(extensions.gen_random_bytes(24), 'hex');
   insert into sb_sessions (token, person_id) values (v_token, p.id);
-  return jsonb_build_object('token', v_token, 'person_id', p.id, 'name', v_name);
+  return jsonb_build_object('token', v_token, 'person_id', p.id, 'name', v_name,
+    'avatar', (select avatar from sb_people where id = p.id));
 end $$;
 
 -- Teman yang sudah punya sesi di HP ini cukup sekali ketuk untuk gabung tagihan baru.
@@ -233,7 +239,7 @@ begin
   if not found then return jsonb_build_object('error','Tagihan tidak ditemukan'); end if;
   r := sb_bill_json(b.id, false);
   if v_me is not null then
-    r := r || jsonb_build_object('me', (select jsonb_build_object('id', p.id, 'name', p.name,
+    r := r || jsonb_build_object('me', (select jsonb_build_object('id', p.id, 'name', p.name, 'avatar', p.avatar,
             'is_member', exists (select 1 from sb_members m where m.bill_id = b.id and m.person_id = p.id))
             from sb_people p where p.id = v_me));
   end if;
@@ -430,7 +436,7 @@ revoke execute on function
 from public, anon, authenticated;
 
 grant execute on function
-  public.sb_ping(), public.sb_join(text,text,text,text), public.sb_join_token(text,text),
+  public.sb_ping(), public.sb_join(text,text,text,text,text), public.sb_join_token(text,text),
   public.sb_get_bill(text,text),
   public.sb_set_claims(text,text,uuid[]), public.sb_set_my_status(text,text,text),
   public.sb_admin_check(text), public.sb_admin_list(text), public.sb_admin_get(text,text),

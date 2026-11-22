@@ -39,6 +39,7 @@ function fmtDate(d) {
 
 let toastTimer;
 function toast(msg, bad) {
+  if (bad && typeof SFX !== "undefined") SFX.bad();
   let el = $("#toast");
   if (!el) { el = document.createElement("div"); el.id = "toast"; document.body.appendChild(el); }
   el.textContent = msg;
@@ -72,4 +73,95 @@ function personBreakdown(bill, personId) {
 
 function billLink(code) {
   return new URL("./?b=" + code, location.href).href.replace(/admin\.html/, "");
+}
+
+// ------------------------------------------------------------------ efek game
+const SFX = {
+  on: store.get("sb_sound") !== "off",
+  ctx: null,
+  tone(freqs, dur = 0.07, type = "square", vol = 0.05) {
+    if (!this.on) return;
+    try {
+      this.ctx = this.ctx || new (window.AudioContext || window.webkitAudioContext)();
+      let t = this.ctx.currentTime;
+      for (const f of freqs) {
+        const o = this.ctx.createOscillator(), g = this.ctx.createGain();
+        o.type = type; o.frequency.value = f;
+        g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(g); g.connect(this.ctx.destination); o.start(t); o.stop(t + dur);
+        t += dur * 0.9;
+      }
+    } catch {}
+  },
+  coin() { this.tone([1047, 1319, 1568], 0.05); },
+  drop() { this.tone([440, 330], 0.06, "triangle"); },
+  select() { this.tone([660, 880], 0.05); },
+  ok() { this.tone([523, 659, 784, 1047], 0.09); },
+  bad() { this.tone([180, 140], 0.12, "sawtooth", 0.04); },
+  start() { this.tone([392, 523, 659, 784, 659, 784, 1047], 0.08); },
+  toggle() { this.on = !this.on; store.set("sb_sound", this.on ? "on" : "off"); if (this.on) this.select(); return this.on; },
+};
+
+function soundButton(el) {
+  const paint = () => (el.textContent = SFX.on ? "♪ ON" : "♪ OFF");
+  paint(); el.onclick = () => { SFX.toggle(); paint(); };
+}
+
+function floatText(x, y, text, minus) {
+  const d = document.createElement("div");
+  d.className = "fx" + (minus ? " minus" : ""); d.textContent = text;
+  d.style.left = x + "px"; d.style.top = y + "px";
+  document.body.appendChild(d); setTimeout(() => d.remove(), 950);
+}
+
+function sparks(x, y, n = 8) {
+  for (let i = 0; i < n; i++) {
+    const s = document.createElement("i"); s.className = "spark";
+    const a = (Math.PI * 2 * i) / n, r = 34 + Math.random() * 18;
+    s.style.left = x + "px"; s.style.top = y + "px";
+    s.style.setProperty("--dx", Math.cos(a) * r + "px"); s.style.setProperty("--dy", Math.sin(a) * r + "px");
+    if (i % 2) s.style.background = "#4ade80";
+    document.body.appendChild(s); setTimeout(() => s.remove(), 650);
+  }
+}
+
+function confetti(n = 70) {
+  const cols = ["#ffc400", "#4ade80", "#15803d", "#6a2bc2", "#ff8fab", "#2ec4b6"];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement("i"); c.className = "confetti";
+    c.style.left = Math.random() * 100 + "vw"; c.style.background = cols[i % cols.length];
+    c.style.animationDuration = 1.6 + Math.random() * 1.6 + "s"; c.style.animationDelay = Math.random() * 0.4 + "s";
+    document.body.appendChild(c); setTimeout(() => c.remove(), 3800);
+  }
+}
+
+function stamp(text) {
+  const s = document.createElement("div"); s.className = "stamp";
+  s.innerHTML = `<div>${text}</div>`; document.body.appendChild(s); setTimeout(() => s.remove(), 1900);
+}
+
+function bgCoins(n = 9) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const w = document.createElement("div"); w.id = "bgcoins";
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement("i");
+    c.style.left = Math.random() * 100 + "vw";
+    c.style.animationDuration = 14 + Math.random() * 14 + "s";
+    c.style.animationDelay = -Math.random() * 28 + "s";
+    w.appendChild(c);
+  }
+  document.body.prepend(w);
+}
+
+// angka berjalan (seperti skor game)
+function countUp(el, to) {
+  const from = Number(el.dataset.v || 0); el.dataset.v = to;
+  if (from === to) { el.textContent = rp(to); return; }
+  el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop");
+  const t0 = performance.now(), d = 450;
+  const step = (t) => {
+    const k = Math.min(1, (t - t0) / d), v = from + (to - from) * (1 - Math.pow(1 - k, 3));
+    el.textContent = rp(v); if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }

@@ -7,27 +7,36 @@
 <title>Admin · Split Bill</title>
 <meta name="theme-color" content="#f6f7f5">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='%230f7a55'/><text x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='700'>%25</text></svg>">
+<link rel="preload" href="fonts/press-start-2p.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 <style>
   .billrow { display: block; text-decoration: none; color: inherit; }
-  .stat { flex: 1; background: #f3f5f3; border-radius: 12px; padding: 10px 12px; }
-  .stat .v { font-weight: 800; font-size: 17px; }
+  .stat { flex: 1; background: #fff; border: var(--b); border-radius: 10px; padding: 10px; box-shadow: 3px 3px 0 var(--ink); }
+  .stat .k { font-family: var(--px); font-size: 7px; color: var(--muted); }
+  .stat .v { font-family: var(--px); font-size: 11px; margin-top: 8px; }
+  .stat.gold { background: var(--gold-soft); }
+  .player { border-top: 2px dashed var(--line); padding: 14px 0 4px; margin-top: 10px; }
+  .player:first-of-type { border-top: 0; }
+  .billrow { transition: transform .2s var(--spring); }
+  .billrow:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
   .act { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
   .ed input { padding: 8px 10px; font-size: 14px; }
   .prev td { padding: 6px; }
-  .err { color: var(--bad); }
+  .err { color: var(--red); }
   .tabs { display: flex; gap: 6px; margin-top: 14px; overflow-x: auto; }
-  .tabs button { background: #fff; color: var(--ink); border: 1px solid var(--line); white-space: nowrap; }
-  .tabs button.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+  .tabs { gap: 8px; padding-bottom: 6px; }
+  .tabs button { background: #fff; color: var(--ink); white-space: nowrap; }
+  .tabs button.on { background: var(--ink); color: var(--gold); }
 </style>
 </head>
 <body>
 <div class="wrap wide">
-  <div class="row between"><a class="brand" href="admin.html" style="text-decoration:none"><span class="dot">%</span> Split Bill · Admin</a>
-    <button class="link small hide" id="out">Keluar</button></div>
+  <div class="topbar"><a class="brand" href="admin.html"><span class="logo">%</span> ADMIN</a>
+    <div class="row" style="gap:6px"><button class="iconbtn" id="snd"></button><button class="iconbtn hide" id="out">KELUAR</button></div></div>
   <div id="app"><div class="spin"></div></div>
 </div>
 
+<script src="avatars.js"></script>
 <script src="common.js"></script>
 <script>
 const app = $("#app");
@@ -37,6 +46,8 @@ const code = (qs.get("b") || "").toUpperCase();
 const isNew = qs.has("new");
 let bill = null, editing = false, tab = "rekap", lastJson = "";
 
+soundButton($("#snd")); bgCoins(6);
+app.innerHTML = `<div class="loader"><span class="av">${av("robo")}</span><p>MEMUAT<span class="blink">...</span></p></div>`;
 $("#out").onclick = () => { store.del("sb_master"); location.href = "admin.html"; };
 
 async function start() {
@@ -50,14 +61,16 @@ async function start() {
 }
 
 function renderLogin() {
-  app.innerHTML = `<h1>Masuk admin</h1><div class="card"><label>Kunci admin</label>
+  app.innerHTML = `<div class="card title-card"><div class="party">${AVATAR_KEYS.map(k => `<span class="av bob">${av(k)}</span>`).join("")}</div>
+    <h1>GAME MASTER</h1><p class="sub" style="margin-top:0">Masuk untuk mengelola tagihan.</p>
+    <label style="text-align:left">KUNCI ADMIN</label>
     <input id="k" type="password" autocomplete="current-password">
-    <button class="block" id="go" style="margin-top:12px">Masuk</button>
+    <button class="block gold" id="go" style="margin-top:14px">▶ MASUK</button>
     <p class="small muted" style="margin-bottom:0">Kunci disimpan di browser ini, jadi cukup sekali.</p></div>`;
   $("#go").onclick = async () => {
     const k = $("#k").value.trim();
     try {
-      if (await rpc("sb_admin_check", { p_master: k })) { store.set("sb_master", k); master = k; start(); }
+      if (await rpc("sb_admin_check", { p_master: k })) { store.set("sb_master", k); master = k; SFX.start(); start(); }
       else toast("Kunci admin salah", true);
     } catch (e) { toast(e.message, true); }
   };
@@ -66,15 +79,15 @@ function renderLogin() {
 async function renderList() {
   let list = [];
   try { list = await rpc("sb_admin_list", { p_master: master }); } catch (e) { return toast(e.message, true); }
-  let h = `<h1>Tagihan</h1><p class="sub">Kirim foto struk ke Claude, tempel hasilnya di tagihan baru, lalu bagikan link ke teman.</p>
-    <a class="btn block" href="admin.html?new" style="margin-top:14px">+ Buat tagihan baru</a>`;
+  let h = `<h1>PILIH LEVEL</h1><p class="sub">Kirim foto struk ke Claude, tempel hasilnya di tagihan baru, lalu bagikan link ke teman.</p>
+    <a class="btn block gold" href="admin.html?new" style="margin-top:14px">+ TAGIHAN BARU</a>`;
   if (!list.length) h += `<div class="card muted">Belum ada tagihan.</div>`;
   for (const b of list) {
     const done = b.members > 0 && b.lunas >= b.members;
     h += `<a class="card billrow" href="admin.html?b=${b.code}"><div class="row between">
       <div class="grow"><div class="strong">${esc(b.title)}</div><div class="small muted">${esc([b.place, fmtDate(b.bill_date)].filter(Boolean).join(" · "))}</div></div>
-      <div style="text-align:right"><div class="strong num">${rp(b.total)}</div>
-      <div class="small">${b.locked ? '<span class="tag grey">Dikunci</span> ' : ""}<span class="tag ${done ? "ok" : ""}">${b.lunas}/${b.members} lunas</span></div></div></div></a>`;
+      <div style="text-align:right"><div class="px num" style="font-size:10px">${rp(b.total)}</div>
+      <div class="small" style="margin-top:6px">${b.locked ? '<span class="tag">🔒</span> ' : ""}<span class="tag ${done ? "ok" : "wait"}">${b.lunas}/${b.members} LUNAS${done ? " ★" : ""}</span></div></div></div></a>`;
   }
   app.innerHTML = h;
 }
@@ -99,27 +112,27 @@ function parseItems(txt) {
 
 function renderNew() {
   const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  app.innerHTML = `<h1>Tagihan baru</h1>
-  <div class="card"><h2>Daftar item</h2>
+  app.innerHTML = `<h1>LEVEL BARU</h1>
+  <div class="card"><span class="label gold">DAFTAR ITEM</span><div style="height:6px"></div>
     <p class="small muted" style="margin-top:0">Tempel teks dari Claude. Satu baris satu item: <b>jumlah | nama | harga satuan</b>.</p>
     <textarea id="items" placeholder="2 | Nasi Goreng Spesial | 25000&#10;3 | Es Teh Manis | 5000&#10;1 | Pizza Large | 80000"></textarea>
     <div id="prev"></div>
-    <label>Total akhir di struk (sudah termasuk pajak, service, diskon)</label>
+    <label>TOTAL AKHIR STRUK</label><div class="small muted" style="margin:-4px 0 8px">Sudah termasuk pajak, service, dan diskon.</div>
     <input id="total" inputmode="numeric" placeholder="167475">
     <div id="adj" class="small muted" style="margin-top:6px"></div>
   </div>
-  <div class="card"><h2>Info tagihan</h2>
-    <label>Judul</label><input id="title" placeholder="Makan malam">
-    <div class="row"><div class="grow"><label>Tempat</label><input id="place"></div>
-    <div class="grow"><label>Tanggal</label><input id="date" type="date" value="${today}"></div></div>
+  <div class="card"><span class="label">INFO TAGIHAN</span>
+    <label>JUDUL</label><input id="title" placeholder="Makan malam">
+    <div class="row"><div class="grow"><label>TEMPAT</label><input id="place"></div>
+    <div class="grow"><label>TANGGAL</label><input id="date" type="date" value="${today}"></div></div>
   </div>
-  <div class="card"><h2>Penalang</h2>
-    <p class="small muted" style="margin-top:0">Orang yang membayar ke kasir. Kalau nomornya sama dengan salah satu peserta, ia otomatis ditandai penalang.</p>
-    <label>Nama</label><input id="pn" value="${esc(store.get("sb_payer_name") || "")}">
-    <label>Nomor HP</label><input id="pp" inputmode="tel" value="${esc(store.get("sb_payer_phone") || "")}">
-    <label>Info transfer (rekening, e-wallet)</label><textarea id="pi" style="min-height:80px;font-family:inherit" placeholder="BCA 1234567890 a.n. Ilman&#10;DANA 0877xxxx">${esc(store.get("sb_payer_info") || "")}</textarea>
+  <div class="card"><span class="label">PENALANG</span>
+    <p class="small muted" style="margin-top:8px">Orang yang membayar ke kasir. Kalau nomornya sama dengan salah satu peserta, ia otomatis ditandai penalang.</p>
+    <label>NAMA</label><input id="pn" value="${esc(store.get("sb_payer_name") || "")}">
+    <label>NOMOR HP</label><input id="pp" inputmode="tel" value="${esc(store.get("sb_payer_phone") || "")}">
+    <label>INFO TRANSFER</label><textarea id="pi" style="min-height:80px;font-family:inherit" placeholder="BCA 1234567890 a.n. Ilman&#10;DANA 0877xxxx">${esc(store.get("sb_payer_info") || "")}</textarea>
   </div>
-  <button class="block" id="create" style="margin-top:16px">Buat tagihan dan dapatkan link</button>`;
+  <button class="block gold" id="create" style="margin-top:20px">▶ BUAT TAGIHAN</button>`;
   const upd = () => {
     const { items, errs } = parseItems($("#items").value);
     const sub = items.reduce((a, i) => a + i.qty * i.price, 0);
@@ -145,13 +158,13 @@ function renderNew() {
     if (errs.length) return toast("Ada baris item yang belum terbaca", true);
     if (isNaN(tot)) return toast("Isi total akhir struk", true);
     store.set("sb_payer_name", $("#pn").value.trim()); store.set("sb_payer_phone", $("#pp").value.trim()); store.set("sb_payer_info", $("#pi").value.trim());
-    e.target.disabled = true; e.target.textContent = "Membuat...";
+    e.target.disabled = true; e.target.textContent = "MEMBUAT...";
     try {
       const b = await rpc("sb_admin_create_bill", { p_master: master, p_title: $("#title").value, p_place: $("#place").value,
         p_date: $("#date").value || null, p_total: tot, p_items: items,
         p_payer_name: $("#pn").value, p_payer_phone: $("#pp").value, p_payment_info: $("#pi").value });
-      location.href = "admin.html?b=" + b.code;
-    } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.textContent = "Buat tagihan dan dapatkan link"; }
+      SFX.ok(); store.set("sb_fresh", b.code); location.href = "admin.html?b=" + b.code;
+    } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.textContent = "▶ BUAT TAGIHAN"; }
   };
 }
 
@@ -163,6 +176,7 @@ async function loadBill(silent) {
     if (silent && j === lastJson) return;
     lastJson = j; bill = b;
     if (!editing) renderBill();
+    if (!silent && store.get("sb_fresh") === code) { store.del("sb_fresh"); confetti(50); stamp("LEVEL<br>DIBUAT!"); }
   } catch (e) { if (!silent) app.innerHTML = `<div class="card">${esc(e.message)}</div>`; }
 }
 
@@ -191,7 +205,7 @@ function recapText() {
 }
 
 function statusSel(m) {
-  if (m.is_payer) return '<span class="tag ok">Penalang</span>';
+  if (m.is_payer) return '<span class="tag pay">PENALANG</span>';
   return `<select data-st="${m.id}" style="padding:6px 8px;font-size:13px;width:auto">
     ${[["belum", "Belum bayar"], ["sudah_transfer", "Sudah transfer"], ["lunas", "Lunas"]].map(([v, l]) => `<option value="${v}" ${m.status === v ? "selected" : ""}>${l}</option>`).join("")}</select>`;
 }
@@ -200,75 +214,76 @@ function renderBill() {
   const y = window.scrollY;
   const claimedOwe = bill.members.reduce((a, m) => a + m.owe, 0);
   const lunas = bill.members.filter(m => m.status === "lunas" || m.is_payer).length;
-  let h = `<h1>${esc(bill.title)}</h1><div class="sub">${esc([bill.place, fmtDate(bill.bill_date)].filter(Boolean).join(" · "))} · Kode <b>${bill.code}</b></div>
-  <div class="card"><div class="small muted">Link untuk teman</div>
-    <div class="strong" style="word-break:break-all;margin:4px 0 10px">${esc(billLink(bill.code))}</div>
-    <div class="row"><button class="soft grow" id="cpLink">Salin link</button>
-    <a class="btn wa grow" target="_blank" href="https://wa.me/?text=${encodeURIComponent(groupText())}">Kirim ke WA</a></div></div>
+  let h = `<h1>${esc(bill.title)}</h1><div class="sub">${esc([bill.place, fmtDate(bill.bill_date)].filter(Boolean).join(" · "))} · Kode <b class="px" style="font-size:11px">${bill.code}</b></div>
+  <div class="card"><span class="label gold">LINK UNTUK PARTY</span>
+    <div class="strong" style="word-break:break-all;margin:8px 0 12px">${esc(billLink(bill.code))}</div>
+    <div class="row"><button class="soft grow" id="cpLink">SALIN LINK</button>
+    <a class="btn wa grow" target="_blank" href="https://wa.me/?text=${encodeURIComponent(groupText())}">KIRIM KE WA</a></div></div>
   <div class="row" style="margin-top:14px;gap:8px">
-    <div class="stat"><div class="small muted">Total struk</div><div class="v num">${rp(bill.total)}</div></div>
-    <div class="stat"><div class="small muted">Sudah diklaim</div><div class="v num">${rp(claimedOwe)}</div></div>
-    <div class="stat"><div class="small muted">Lunas</div><div class="v">${lunas}/${bill.members.length}</div></div></div>`;
-  if (bill.unclaimed > 0) h += `<div class="notice">Masih ada item senilai ${rp(bill.unclaimed)} (${rp(bill.unclaimed_owe)} setelah pajak) yang belum diklaim siapa pun.</div>`;
-  else if (bill.items.length) h += `<div class="notice ok">Semua item sudah diklaim. Jumlah tagihan semua orang pas dengan total struk.</div>`;
-  if (bill.locked) h += `<div class="notice">Tagihan dikunci: teman tidak bisa mengubah pilihan atau bergabung.</div>`;
+    <div class="stat gold"><div class="k">STRUK</div><div class="v num">${rp(bill.total)}</div></div>
+    <div class="stat"><div class="k">TERKLAIM</div><div class="v num">${rp(claimedOwe)}</div></div>
+    <div class="stat"><div class="k">LUNAS</div><div class="v">${lunas}/${bill.members.length}</div></div></div>
+  <div class="hpbar"><i style="width:${bill.total > 0 ? Math.min(100, Math.round(claimedOwe / bill.total * 100)) : 0}%"></i></div>`;
+  if (bill.unclaimed > 0) h += `<div class="notice"><span>⚠️</span><div><b>ITEM TERSISA</b>Senilai ${rp(bill.unclaimed)} (${rp(bill.unclaimed_owe)} setelah pajak) belum diklaim siapa pun.</div></div>`;
+  else if (bill.items.length) h += `<div class="notice ok"><span>🏆</span><div><b>SEMUA ITEM DIKLAIM!</b>Tagihan semua pemain pas dengan total struk.</div></div>`;
+  if (bill.locked) h += `<div class="notice"><span>🔒</span><div><b>DIKUNCI</b>Teman tidak bisa mengubah pilihan atau bergabung.</div></div>`;
 
-  h += `<div class="tabs">${[["rekap", "Rekap"], ["items", "Item"], ["set", "Pengaturan"]].map(([k, l]) => `<button class="sm ${tab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div>`;
+  h += `<div class="tabs">${[["rekap", "PARTY"], ["items", "ITEM"], ["set", "SETELAN"]].map(([k, l]) => `<button class="sm ${tab === k ? "on" : ""}" data-tab="${k}">${l}</button>`).join("")}</div>`;
 
   if (tab === "rekap") {
-    h += `<div class="card"><div class="row between"><h2 style="margin:0">Peserta (${bill.members.length})</h2><button class="sm soft" id="cpRecap">Salin rekap</button></div>`;
+    h += `<div class="card"><span class="label">PARTY (${bill.members.length})</span><div class="row between" style="margin-top:4px"><span class="small muted">Status diubah langsung dari sini.</span><button class="sm soft" id="cpRecap">SALIN REKAP</button></div>`;
     if (!bill.members.length) h += `<p class="muted">Belum ada yang gabung. Bagikan link di atas.</p>`;
     for (const m of bill.members) {
       const br = personBreakdown(bill, m.id);
-      h += `<div style="border-top:1px solid var(--line);padding:12px 0;margin-top:10px">
-        <div class="row between"><div class="grow"><div class="strong">${esc(m.name)}</div><div class="small muted">+${esc(m.phone || "")} · ${br.lines.length} item</div></div>
-        <div style="text-align:right"><div class="strong num">${rp(m.owe)}</div></div></div>
+      h += `<div class="player">
+        <div class="row between"><span class="av bob" style="animation-delay:${(m.name.length % 5) * .2}s">${av(m.avatar)}</span><div class="grow"><div class="strong" style="font-size:18px">${esc(m.name)}</div><div class="small muted">+${esc(m.phone || "")} · ${br.lines.length} item</div></div>
+        <div style="text-align:right"><div class="px num" style="font-size:11px">${rp(m.owe)}</div></div></div>
         <div class="small muted" style="margin-top:4px">${br.lines.map(l => esc(l.name) + (l.n > 1 ? " ÷" + l.n : "")).join(", ") || "Belum memilih item"}</div>
         <div class="row between" style="margin-top:8px">${statusSel(m)}
-          <div class="act">${!m.is_payer && m.owe > 0 && m.status !== "lunas" ? `<a class="btn wa sm" target="_blank" href="https://wa.me/${m.phone}?text=${encodeURIComponent(waText(m))}">Tagih via WA</a>` : ""}
-          <button class="sm ghost" data-more="${m.id}">Lainnya</button></div></div>
+          <div class="act">${!m.is_payer && m.owe > 0 && m.status !== "lunas" ? `<a class="btn wa sm" target="_blank" href="https://wa.me/${m.phone}?text=${encodeURIComponent(waText(m))}">TAGIH WA</a>` : ""}
+          <button class="sm ghost" data-more="${m.id}">•••</button></div></div>
         <div class="act hide" id="more-${m.id}" style="margin-top:8px">
-          <button class="sm ghost" data-reset="${m.id}">Reset PIN</button>
-          <button class="sm danger" data-rm="${m.id}">Keluarkan dari tagihan</button></div></div>`;
+          <button class="sm ghost" data-reset="${m.id}">RESET PIN</button>
+          <button class="sm danger" data-rm="${m.id}">KELUARKAN</button></div></div>`;
     }
     h += `</div>`;
   }
 
   if (tab === "items") {
-    h += `<div class="card"><h2>Item (${bill.items.length}) · subtotal ${rp(bill.subtotal)}</h2>`;
+    h += `<div class="card"><span class="label">ITEM (${bill.items.length})</span><div class="small muted" style="margin-top:4px">Subtotal ${rp(bill.subtotal)}</div>`;
     for (const it of bill.items) {
-      h += `<div class="row between" style="border-top:1px solid var(--line);padding:10px 0" id="it-${it.id}">
+      h += `<div class="row between" style="border-top:2px dashed var(--line);padding:10px 0" id="it-${it.id}">
         <div class="grow"><div class="strong">${esc(it.name)}</div>
         <div class="small ${it.claimers.length ? "muted" : "err"}">${it.claimers.length ? it.claimers.map(c => esc(c.name)).join(", ") : "Belum diklaim"}</div></div>
         <div style="text-align:right"><div class="num">${rp(it.price)}</div>
-        <div class="act" style="margin-top:4px"><button class="sm ghost" data-edit="${it.id}">Ubah</button><button class="sm danger" data-del="${it.id}">Hapus</button></div></div></div>`;
+        <div class="act" style="margin-top:4px"><button class="sm ghost" data-edit="${it.id}">UBAH</button><button class="sm danger" data-del="${it.id}">HAPUS</button></div></div></div>`;
     }
-    h += `<div class="row ed" style="margin-top:12px;gap:6px"><input id="nName" placeholder="Nama item" class="grow"><input id="nPrice" placeholder="Harga" inputmode="numeric" style="width:110px"><button class="sm" id="add">Tambah</button></div>
+    h += `<div class="row ed" style="margin-top:12px;gap:6px"><input id="nName" placeholder="Nama item" class="grow"><input id="nPrice" placeholder="Harga" inputmode="numeric" style="width:110px"><button class="sm" id="add">+ TAMBAH</button></div>
       <p class="small muted" style="margin-bottom:0">Kalau subtotal berubah, pajak tetap dihitung dari total akhir struk di tab Pengaturan.</p></div>`;
   }
 
   if (tab === "set") {
-    h += `<div class="card"><h2>Info tagihan</h2>
-      <label>Judul</label><input id="sTitle" value="${esc(bill.title)}">
-      <div class="row"><div class="grow"><label>Tempat</label><input id="sPlace" value="${esc(bill.place || "")}"></div>
-      <div class="grow"><label>Tanggal</label><input id="sDate" type="date" value="${esc(bill.bill_date || "")}"></div></div>
-      <label>Total akhir struk</label><input id="sTotal" inputmode="numeric" value="${Math.round(bill.total)}">
-      <label>Nama penalang</label><input id="sPn" value="${esc(bill.payer_name || "")}">
-      <label>Nomor HP penalang</label><input id="sPp" inputmode="tel" value="${esc(bill.payer_phone || "")}">
-      <label>Info transfer</label><textarea id="sPi" style="min-height:80px;font-family:inherit">${esc(bill.payment_info || "")}</textarea>
-      <button class="block" id="saveSet" style="margin-top:14px">Simpan perubahan</button></div>
-      <div class="card"><h2>Kunci tagihan</h2><p class="small muted" style="margin-top:0">Kunci setelah semua pilihan beres. Teman tetap bisa melihat dan konfirmasi transfer.</p>
-      <button class="block ${bill.locked ? "soft" : ""}" id="lock">${bill.locked ? "Buka kunci" : "Kunci tagihan"}</button></div>
-      <div class="card"><h2>Hapus tagihan</h2><button class="block danger" id="delBill">Hapus tagihan ini</button></div>`;
+    h += `<div class="card"><span class="label">INFO TAGIHAN</span>
+      <label>JUDUL</label><input id="sTitle" value="${esc(bill.title)}">
+      <div class="row"><div class="grow"><label>TEMPAT</label><input id="sPlace" value="${esc(bill.place || "")}"></div>
+      <div class="grow"><label>TANGGAL</label><input id="sDate" type="date" value="${esc(bill.bill_date || "")}"></div></div>
+      <label>TOTAL AKHIR STRUK</label><input id="sTotal" inputmode="numeric" value="${Math.round(bill.total)}">
+      <label>NAMA PENALANG</label><input id="sPn" value="${esc(bill.payer_name || "")}">
+      <label>HP PENALANG</label><input id="sPp" inputmode="tel" value="${esc(bill.payer_phone || "")}">
+      <label>INFO TRANSFER</label><textarea id="sPi" style="min-height:80px;font-family:inherit">${esc(bill.payment_info || "")}</textarea>
+      <button class="block" id="saveSet" style="margin-top:16px">SIMPAN</button></div>
+      <div class="card"><span class="label">KUNCI TAGIHAN</span><p class="small muted" style="margin-top:8px">Kunci setelah semua pilihan beres. Teman tetap bisa melihat dan konfirmasi transfer.</p>
+      <button class="block ${bill.locked ? "soft" : "gold"}" id="lock">${bill.locked ? "🔓 BUKA KUNCI" : "🔒 KUNCI TAGIHAN"}</button></div>
+      <div class="card"><span class="label">ZONA BAHAYA</span><div style="height:8px"></div><button class="block danger" id="delBill">HAPUS TAGIHAN</button></div>`;
   }
-  h += `<p style="text-align:center;margin-top:20px"><a href="admin.html" class="small" style="color:var(--accent)">← Semua tagihan</a></p>`;
+  h += `<p style="text-align:center;margin-top:20px"><a href="admin.html" class="px" style="color:var(--acc);font-size:9px">◀ SEMUA TAGIHAN</a></p>`;
   app.innerHTML = h;
   window.scrollTo(0, y);
   bind();
 }
 
 async function act(fn, args, msg) {
-  try { bill = await rpc(fn, { p_master: master, p_code: code, ...args }); lastJson = JSON.stringify(bill); renderBill(); if (msg) toast(msg); }
+  try { bill = await rpc(fn, { p_master: master, p_code: code, ...args }); lastJson = JSON.stringify(bill); renderBill(); if (msg) { toast(msg); SFX.coin(); } }
   catch (e) { toast(e.message, true); }
 }
 
@@ -289,17 +304,17 @@ function bind() {
     s.onblur = () => (editing = false);
   });
   app.querySelectorAll("[data-more]").forEach(b => b.onclick = () => $("#more-" + b.dataset.more).classList.toggle("hide"));
-  app.querySelectorAll("[data-reset]").forEach(b => b.onclick = () => twoTap(b, "Yakin reset?", async () => {
+  app.querySelectorAll("[data-reset]").forEach(b => b.onclick = () => twoTap(b, "YAKIN?", async () => {
     try { await rpc("sb_admin_reset_pin", { p_master: master, p_person: b.dataset.reset }); toast("PIN direset. Teman bisa membuat PIN baru saat masuk."); }
     catch (e) { toast(e.message, true); }
   }));
-  app.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => twoTap(b, "Ketuk lagi untuk keluarkan", () => act("sb_admin_remove_member", { p_person: b.dataset.rm }, "Peserta dikeluarkan")));
-  app.querySelectorAll("[data-del]").forEach(b => b.onclick = () => twoTap(b, "Yakin?", () => act("sb_admin_item", { p_action: "delete", p_item_id: b.dataset.del }, "Item dihapus")));
+  app.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => twoTap(b, "YAKIN?", () => act("sb_admin_remove_member", { p_person: b.dataset.rm }, "Peserta dikeluarkan")));
+  app.querySelectorAll("[data-del]").forEach(b => b.onclick = () => twoTap(b, "YAKIN?", () => act("sb_admin_item", { p_action: "delete", p_item_id: b.dataset.del }, "Item dihapus")));
   app.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
     const it = bill.items.find(i => i.id === b.dataset.edit); editing = true;
     const row = $("#it-" + it.id);
     row.innerHTML = `<div class="row ed grow" style="gap:6px"><input class="grow" id="eN" value="${esc(it.name)}"><input id="eP" inputmode="numeric" style="width:110px" value="${Math.round(it.price)}">
-      <button class="sm" id="eS">Simpan</button><button class="sm ghost" id="eC">Batal</button></div>`;
+      <button class="sm" id="eS">SIMPAN</button><button class="sm ghost" id="eC">BATAL</button></div>`;
     $("#eC").onclick = () => { editing = false; renderBill(); };
     $("#eS").onclick = () => { editing = false; act("sb_admin_item", { p_action: "update", p_item_id: it.id, p_name: $("#eN").value, p_price: parseInt($("#eP").value.replace(/\D/g, "")) }, "Item diperbarui"); };
   });
@@ -313,7 +328,7 @@ function bind() {
     title: $("#sTitle").value, place: $("#sPlace").value, bill_date: $("#sDate").value, total: parseInt($("#sTotal").value.replace(/\D/g, "")) || 0,
     payer_name: $("#sPn").value, payer_phone: $("#sPp").value, payment_info: $("#sPi").value } }, "Tersimpan"); };
   const lk = $("#lock"); if (lk) lk.onclick = () => act("sb_admin_update_bill", { p_patch: { locked: !bill.locked } }, bill.locked ? "Kunci dibuka" : "Tagihan dikunci");
-  const db = $("#delBill"); if (db) db.onclick = () => twoTap(db, "Ketuk lagi untuk menghapus permanen", async () => {
+  const db = $("#delBill"); if (db) db.onclick = () => twoTap(db, "KETUK LAGI UNTUK HAPUS", async () => {
     try { await rpc("sb_admin_delete_bill", { p_master: master, p_code: code }); location.href = "admin.html"; } catch (e) { toast(e.message, true); }
   });
 }

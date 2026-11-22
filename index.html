@@ -4,31 +4,38 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Split Bill</title>
-<meta name="theme-color" content="#f6f7f5">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='%230f7a55'/><text x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='700'>%25</text></svg>">
+<meta name="theme-color" content="#f4f8f3">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'><rect width='16' height='16' fill='%231b1b2f'/><rect x='2' y='2' width='12' height='12' fill='%23ffc400'/><rect x='10' y='4' width='2' height='8' fill='%23d9a300'/><rect x='5' y='5' width='2' height='2' fill='%231b1b2f'/><rect x='9' y='9' width='2' height='2' fill='%231b1b2f'/><rect x='5' y='9' width='2' height='2' fill='%231b1b2f'/><rect x='7' y='7' width='2' height='2' fill='%231b1b2f'/><rect x='9' y='5' width='2' height='2' fill='%231b1b2f'/></svg>">
+<link rel="preload" href="fonts/press-start-2p.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="wrap">
-  <div class="brand"><span class="dot">%</span> Split Bill</div>
-  <div id="app"><div class="spin"></div></div>
+  <div class="topbar"><div class="brand"><span class="logo">%</span> SPLIT BILL</div><button class="iconbtn" id="snd"></button></div>
+  <div id="app"></div>
 </div>
-<div class="bar hide" id="bar"><div class="in row between">
-  <div><div class="small muted">Bagianmu</div><div class="big num" id="barOwe">Rp0</div><div class="small muted" id="barSub"></div></div>
-  <div style="text-align:right"><div class="saving" id="saving"></div><button id="barPay" class="sm">Cara bayar</button></div>
+<div class="bar hide" id="bar"><div class="in">
+  <span class="av bob" id="barAv"></span>
+  <div class="grow"><div class="lbl">BAGIANMU</div><div class="big num" id="barOwe">Rp0</div><div class="meta" id="barSub"></div></div>
+  <div><div class="saving" id="saving"></div><button id="barPay" class="gold">BAYAR ▶</button></div>
 </div></div>
 
+<script src="avatars.js"></script>
 <script src="common.js"></script>
 <script>
 const code = (new URLSearchParams(location.search).get("b") || "").toUpperCase().trim();
 let token = store.get("sb_token");
 let lastJson = "", bill = null, me = null, mine = null, dirty = false, saving = false, saveTimer = null, joinMode = "auto";
+let pickAv = store.get("sb_avatar") || AVATAR_KEYS[Math.floor(Math.random() * AVATAR_KEYS.length)];
 const app = $("#app");
+soundButton($("#snd")); bgCoins();
+app.innerHTML = `<div class="loader"><span class="av">${av(pickAv)}</span><p>MEMUAT<span class="blink">...</span></p></div>`;
 
-function statusTag(s) {
-  return s === "lunas" ? '<span class="tag ok">Lunas</span>'
-    : s === "sudah_transfer" ? '<span class="tag">Sudah transfer</span>'
-    : '<span class="tag grey">Belum bayar</span>';
+function statusTag(m) {
+  if (m.is_payer) return '<span class="tag pay">PENALANG</span>';
+  return m.status === "lunas" ? '<span class="tag ok">LUNAS ★</span>'
+    : m.status === "sudah_transfer" ? '<span class="tag wait">CEK TRANSFER</span>'
+    : '<span class="tag">BELUM BAYAR</span>';
 }
 
 async function load(silent) {
@@ -44,22 +51,27 @@ async function load(silent) {
     mine = me ? new Set(bill.items.filter(i => i.claimers.some(c => c.id === me.id)).map(i => i.id)) : null;
     const y = window.scrollY; render(); window.scrollTo(0, y);
   } catch (e) {
-    if (!silent) app.innerHTML = `<div class="card"><h2>Tagihan tidak bisa dibuka</h2><p class="muted">${esc(e.message)}</p></div>`;
+    if (!silent) app.innerHTML = `<div class="card"><span class="label">GAME OVER</span><h2 style="margin-top:6px">Tagihan tidak bisa dibuka</h2><p class="muted">${esc(e.message)}</p></div>`;
   }
 }
 
 function renderNoCode() {
-  app.innerHTML = `<h1>Buka tagihan</h1><p class="sub">Masukkan kode tagihan dari temanmu.</p>
-  <div class="card"><label>Kode tagihan</label><input id="c" placeholder="Contoh: JT5CCM" autocapitalize="characters">
-  <button class="block" style="margin-top:12px" id="go">Buka</button></div>`;
+  app.innerHTML = `<div class="card title-card"><div class="party">${AVATAR_KEYS.map(k => `<span class="av bob">${av(k)}</span>`).join("")}</div>
+    <h1>SPLIT BILL</h1><p class="sub" style="margin-top:0">Masukkan kode tagihan dari temanmu.</p>
+    <input id="c" placeholder="KODE" autocapitalize="characters" class="pin" style="letter-spacing:.3em" maxlength="8">
+    <button class="block gold" style="margin-top:14px" id="go">▶ MASUK</button></div>`;
   $("#go").onclick = () => { const v = $("#c").value.trim(); if (v) location.search = "?b=" + encodeURIComponent(v.toUpperCase()); };
 }
 
 function head() {
   const meta = [bill.place, fmtDate(bill.bill_date)].filter(Boolean).map(esc).join(" · ");
+  const claimed = bill.subtotal > 0 ? Math.round((1 - bill.unclaimed / bill.subtotal) * 100) : 0;
   return `<h1>${esc(bill.title)}</h1><div class="sub">${meta}</div>
-    <div class="card row between"><div><div class="small muted">Total struk</div><div class="strong num" style="font-size:20px">${rp(bill.total)}</div></div>
-    ${bill.payer_name ? `<div style="text-align:right"><div class="small muted">Ditalangi oleh</div><div class="strong">${esc(bill.payer_name)}</div></div>` : ""}</div>`;
+    <div class="card"><span class="label gold">TOTAL STRUK</span>
+      <div class="boss"><div><div class="hp num">${rp(bill.total)}</div>
+      ${bill.payer_name ? `<div class="small muted" style="margin-top:4px">Ditalangi oleh <b style="color:var(--ink)">${esc(bill.payer_name)}</b></div>` : ""}</div>
+      <div class="px small" style="font-size:9px;text-align:right">TERKLAIM<br><span style="font-size:14px;color:var(--acc)">${claimed}%</span></div></div>
+      <div class="hpbar"><i style="width:${claimed}%"></i></div></div>`;
 }
 
 function render() {
@@ -68,43 +80,60 @@ function render() {
   renderMain();
 }
 
+function charPicker() {
+  return `<div class="chars">${AVATAR_KEYS.map(k => `<div class="char ${k === pickAv ? "on" : ""}" data-av="${k}"><span class="av">${av(k)}</span><div class="nm">${esc(AVATARS[k].name.split(" ")[0])}</div></div>`).join("")}</div>
+    <div class="charname" id="cname">${esc(AVATARS[pickAv].name.toUpperCase())}</div>`;
+}
+function bindPicker() {
+  app.querySelectorAll(".char").forEach(el => el.onclick = () => {
+    pickAv = el.dataset.av; SFX.select();
+    app.querySelectorAll(".char").forEach(c => c.classList.toggle("on", c === el));
+    $("#cname").textContent = AVATARS[pickAv].name.toUpperCase();
+  });
+}
+
 function renderJoin() {
   const known = me && !me.is_member && joinMode === "auto";
   if (known) {
-    app.innerHTML = head() + `<div class="card"><h2>Halo, ${esc(me.name)} 👋</h2>
-      <p class="muted" style="margin-top:0">Kamu sudah pernah masuk di HP ini.</p>
-      <button class="block" id="quick">Gabung sebagai ${esc(me.name)}</button>
-      <p class="small" style="text-align:center;margin-bottom:0"><button class="link" id="other">Bukan ${esc(me.name)}? Masuk dengan nomor lain</button></p></div>`;
+    app.innerHTML = head() + `<div class="card" style="text-align:center"><span class="label">PEMAIN LAMA</span>
+      <span class="av lg bob" style="margin-top:8px">${av(me.avatar)}</span>
+      <h2 style="margin:10px 0 4px">HALO, ${esc(me.name.toUpperCase())}!</h2>
+      <p class="muted" style="margin-top:0">Kamu sudah pernah main di HP ini.</p>
+      <button class="block gold" id="quick">▶ LANJUTKAN</button>
+      <p class="small" style="margin-bottom:0"><button class="link" id="other">Bukan ${esc(me.name)}? Masuk dengan nomor lain</button></p></div>`;
     $("#quick").onclick = async (e) => {
       e.target.disabled = true;
-      try { await rpc("sb_join_token", { p_token: token, p_code: code }); await load(); }
+      try { await rpc("sb_join_token", { p_token: token, p_code: code }); SFX.start(); await load(); }
       catch (err) { toast(err.message, true); e.target.disabled = false; }
     };
     $("#other").onclick = () => { joinMode = "form"; renderJoin(); };
     return;
   }
   if (bill.locked) {
-    app.innerHTML = head() + `<div class="notice">Tagihan ini sudah dikunci, jadi tidak bisa menambah peserta baru.</div>`;
+    app.innerHTML = head() + `<div class="notice"><span>🔒</span><div><b>TAGIHAN DIKUNCI</b>Admin sudah menutup tagihan ini, jadi pemain baru tidak bisa masuk.</div></div>`;
     return;
   }
-  app.innerHTML = head() + `<div class="card"><h2>Masuk untuk memilih pesananmu</h2>
-    <label>Nama panggilan</label><input id="nm" maxlength="40" autocomplete="name" value="${esc(store.get("sb_name") || "")}">
-    <label>Nomor HP (WhatsApp)</label><input id="ph" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxxxx" value="${esc(store.get("sb_phone") || "")}">
-    <label>PIN 4 angka</label><input id="pin" class="pin" inputmode="numeric" maxlength="4" autocomplete="off" type="password" placeholder="••••">
-    <p class="small muted" style="margin:8px 0 0">Pertama kali? PIN ini kamu buat sekarang. Sudah pernah? Pakai PIN yang sama. PIN menjaga agar pilihanmu tidak bisa diubah orang lain.</p>
-    <button class="block" id="join" style="margin-top:14px">Masuk</button>
-    <p class="small muted" style="margin-bottom:0">Nomor HP hanya terlihat oleh admin untuk keperluan penagihan.</p></div>`;
+  app.innerHTML = head() + `<div class="card"><span class="label">PILIH KARAKTER</span><div style="height:12px"></div>${charPicker()}</div>
+    <div class="card"><span class="label">DATA PEMAIN</span>
+    <label>NAMA PEMAIN</label><input id="nm" maxlength="40" autocomplete="name" placeholder="Nama panggilan" value="${esc(store.get("sb_name") || "")}">
+    <label>NOMOR HP (WA)</label><input id="ph" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxxxx" value="${esc(store.get("sb_phone") || "")}">
+    <label>PIN RAHASIA (4 ANGKA)</label><input id="pin" class="pin" inputmode="numeric" maxlength="4" autocomplete="off" type="password" placeholder="····">
+    <p class="small muted" style="margin:8px 0 0">Pertama kali? Buat PIN sekarang. Sudah pernah? Pakai PIN yang sama. PIN menjaga pilihanmu supaya tidak diubah orang lain.</p>
+    <button class="block gold" id="join" style="margin-top:16px">▶ MULAI</button>
+    <p class="small muted" style="margin-bottom:0;text-align:center">Nomor HP hanya terlihat oleh admin untuk penagihan.</p></div>`;
+  bindPicker();
   $("#pin").addEventListener("input", (e) => (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4)));
   $("#join").onclick = async (e) => {
     const nm = $("#nm").value.trim(), ph = $("#ph").value.trim(), pin = $("#pin").value;
-    if (!nm) return toast("Isi nama dulu", true);
+    if (!nm) return toast("Isi nama pemain dulu", true);
     if (pin.length !== 4) return toast("PIN harus 4 angka", true);
-    e.target.disabled = true; e.target.textContent = "Memproses...";
+    e.target.disabled = true; e.target.textContent = "MEMUAT...";
     try {
-      const r = await rpc("sb_join", { p_code: code, p_name: nm, p_phone: ph, p_pin: pin });
-      token = r.token; store.set("sb_token", token); store.set("sb_name", nm); store.set("sb_phone", ph);
-      joinMode = "auto"; await load();
-    } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.textContent = "Masuk"; }
+      const r = await rpc("sb_join", { p_code: code, p_name: nm, p_phone: ph, p_pin: pin, p_avatar: pickAv });
+      token = r.token; store.set("sb_token", token); store.set("sb_name", nm); store.set("sb_phone", ph); store.set("sb_avatar", pickAv);
+      joinMode = "auto"; SFX.start(); stamp(`PLAYER<br>${esc(nm.toUpperCase().slice(0, 12))}<br>MASUK!`);
+      await load();
+    } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.textContent = "▶ MULAI"; }
   };
 }
 
@@ -112,81 +141,89 @@ function localBill() {
   // salinan tagihan dengan pilihanku yang terbaru (optimistis, sebelum tersimpan)
   const items = bill.items.map(it => {
     const others = it.claimers.filter(c => c.id !== me.id);
-    return { ...it, claimers: mine.has(it.id) ? [...others, { id: me.id, name: me.name }] : others };
+    return { ...it, claimers: mine.has(it.id) ? [...others, { id: me.id, name: me.name, avatar: me.avatar }] : others };
   });
-  return { ...bill, items };
+  const unclaimed = items.filter(i => !i.claimers.length).reduce((a, i) => a + Number(i.price), 0);
+  return { ...bill, items, unclaimed };
 }
 
-function renderMain() {
+function renderMain(pulseId) {
   const lb = localBill();
   const my = personBreakdown(lb, me.id);
   const meMember = bill.members.find(m => m.id === me.id) || {};
   const unclaimed = lb.items.filter(i => i.claimers.length === 0);
   const adjLabel = bill.adjust > 0 ? "pajak & service" : bill.adjust < 0 ? "diskon" : "";
+  const saved = { ...bill }; bill = lb; let h = head(); bill = saved;
 
-  let h = head();
-  if (bill.locked) h += `<div class="notice">Tagihan sudah dikunci admin. Pilihan tidak bisa diubah lagi.</div>`;
-  h += `<div class="card"><div class="row between"><h2 style="margin:0">Pilih pesananmu</h2>
-          <button class="link small" id="logout">Bukan ${esc(me.name)}?</button></div>
-        <p class="small muted" style="margin:4px 0 0">Centang yang kamu makan atau minum. Kalau patungan, centang juga; harganya otomatis dibagi rata.</p>`;
+  if (bill.locked) h += `<div class="notice"><span>🔒</span><div><b>TAGIHAN DIKUNCI</b>Pilihan tidak bisa diubah lagi.</div></div>`;
+  h += `<div class="card"><span class="label">AMBIL ITEMMU</span>
+        <div class="row between" style="margin-top:6px"><div class="small muted">Centang yang kamu makan atau minum. Patungan? Centang juga, harganya dibagi rata otomatis.</div></div>`;
   for (const it of lb.items) {
     const on = mine.has(it.id), n = it.claimers.length;
-    const chips = it.claimers.map(c => `<span class="chip ${c.id === me.id ? "me" : ""}">${esc(c.id === me.id ? "Kamu" : c.name)}</span>`).join("");
-    h += `<div class="item ${on ? "on" : ""} ${bill.locked ? "locked" : ""}" data-id="${it.id}">
-      <div class="check"></div>
-      <div class="grow"><div class="row between"><div class="strong">${esc(it.name)}</div><div class="num">${rp(it.price)}</div></div>
+    const chips = it.claimers.map(c => `<span class="chip ${c.id === me.id ? "me" : ""}"><span class="av sm">${av(c.avatar)}</span>${esc(c.id === me.id ? "Kamu" : c.name)}</span>`).join("");
+    h += `<div class="item ${on ? "on" : ""} ${on && pulseId === it.id ? "pulse" : ""} ${bill.locked ? "locked" : ""}" data-id="${it.id}" data-price="${it.price}">
+      <div class="box">${on ? "✓" : ""}</div>
+      <div class="grow"><div class="row between" style="align-items:flex-start"><div class="nm">${esc(it.name)}</div><div class="pr">${rp(it.price)}</div></div>
       ${n > 1 ? `<div class="small muted">Dibagi ${n} orang · ${rp(it.price / n)}/orang</div>` : ""}
-      ${chips ? `<div class="chips">${chips}</div>` : `<div class="small muted">Belum ada yang pilih</div>`}</div></div>`;
+      ${chips ? `<div class="chips">${chips}</div>` : `<div class="small muted" style="margin-top:3px">Belum ada yang ambil</div>`}</div></div>`;
   }
-  if (unclaimed.length) h += `<div class="notice">${unclaimed.length} item belum dipilih siapa pun (${rp(unclaimed.reduce((a, i) => a + i.price, 0))}).</div>`;
+  if (unclaimed.length) h += `<div class="notice"><span>⚠️</span><div><b>${unclaimed.length} ITEM TERSISA</b>Belum diambil siapa pun, senilai ${rp(unclaimed.reduce((a, i) => a + Number(i.price), 0))}.</div></div>`;
+  else h += `<div class="notice ok"><span>🏆</span><div><b>SEMUA ITEM DIKLAIM!</b>Total semua pemain sudah pas dengan struk.</div></div>`;
   h += `</div>`;
 
-  h += `<div class="card"><h2>Rincian bagianmu</h2><div class="lines">`;
-  if (!my.lines.length) h += `<div class="muted small">Belum ada item yang kamu pilih.</div>`;
+  h += `<div class="card"><span class="label">INVENTORI KAMU</span><div class="lines" style="margin-top:6px">`;
+  if (!my.lines.length) h += `<div class="muted">Belum ada item. Ambil dulu di atas.</div>`;
   for (const l of my.lines) h += `<div class="l"><span>${esc(l.name)}${l.n > 1 ? ` <span class="muted">(÷${l.n})</span>` : ""}</span><span class="num">${rp(l.part)}</span></div>`;
   if (my.lines.length) {
     h += `<div class="hr"></div><div class="l"><span>Subtotal</span><span class="num">${rp(my.sub)}</span></div>`;
-    if (adjLabel) h += `<div class="l"><span>Bagian ${adjLabel}</span><span class="num">${my.adj < 0 ? "−" : ""}${rp(Math.abs(my.adj))}</span></div>`;
-    h += `<div class="l strong"><span>Total bayar</span><span class="num">${rp(my.owe)}</span></div>`;
+    if (adjLabel) h += `<div class="l"><span>Bagian ${adjLabel}</span><span class="num">${my.adj < 0 ? "−" : "+"}${rp(Math.abs(my.adj))}</span></div>`;
+    h += `<div class="l tot"><span>TOTAL</span><span class="num">${rp(my.owe)}</span></div>`;
   }
-  h += `</div>${adjLabel ? `<p class="small muted" style="margin-bottom:0">Pajak, service, dan diskon dibagi sebanding dengan nilai pesanan masing-masing, jadi jumlah semua orang pas dengan total struk.</p>` : ""}</div>`;
+  h += `</div>${adjLabel ? `<p class="small muted" style="margin-bottom:0">Pajak, service, dan diskon dibagi sebanding dengan pesanan masing-masing.</p>` : ""}</div>`;
 
-  h += `<div class="card" id="pay"><h2>Pembayaran</h2>`;
+  h += `<div class="card" id="pay"><span class="label gold">MISI: BAYAR</span><div style="height:6px"></div>`;
   if (meMember.is_payer) {
-    h += `<div class="notice ok" style="margin-top:0">Kamu penalang tagihan ini. Bagianmu sudah kamu bayar langsung ke kasir.</div>`;
+    h += `<div class="notice ok" style="margin-top:0"><span>💳</span><div><b>KAMU PENALANG</b>Kamu yang bayar ke kasir. Tunggu teman transfer ke kamu.</div></div>`;
   } else {
-    h += `<div class="small muted">Transfer ke ${esc(bill.payer_name || "penalang")}</div>`;
-    if (bill.payment_info) h += `<div class="row between" style="margin-top:6px"><div class="strong grow" style="white-space:pre-line">${esc(bill.payment_info)}</div><button class="sm soft" id="cpy">Salin</button></div>`;
-    h += `<div class="row between" style="margin-top:14px"><span>Status kamu</span>${statusTag(meMember.status)}</div>`;
-    if (meMember.status === "belum") h += `<button class="block" id="paid" style="margin-top:12px" ${my.owe ? "" : "disabled"}>Saya sudah transfer ${rp(my.owe)}</button>`;
-    else if (meMember.status === "sudah_transfer") h += `<p class="small muted">Menunggu konfirmasi ${esc(bill.payer_name || "penalang")}. <button class="link small" id="unpaid">Batalkan</button></p>`;
+    h += `<div class="small muted">Transfer ke <b style="color:var(--ink)">${esc(bill.payer_name || "penalang")}</b></div>`;
+    if (bill.payment_info) h += `<div class="row between" style="margin-top:8px"><div class="strong grow" style="white-space:pre-line;font-size:18px">${esc(bill.payment_info)}</div><button class="sm soft" id="cpy">SALIN</button></div>`;
+    h += `<div class="row between" style="margin-top:14px"><span>Status kamu</span>${statusTag(meMember)}</div>`;
+    if (meMember.status === "belum") h += `<button class="block" id="paid" style="margin-top:14px" ${my.owe ? "" : "disabled"}>✓ SUDAH TRANSFER ${rp(my.owe)}</button>`;
+    else if (meMember.status === "sudah_transfer") h += `<p class="small muted">Menunggu ${esc(bill.payer_name || "penalang")} mengecek transfermu. <button class="link small" id="unpaid">Batalkan</button></p>`;
+    else h += `<div class="notice ok"><span>★</span><div><b>MISI SELESAI</b>Pembayaranmu sudah dikonfirmasi. Terima kasih!</div></div>`;
   }
   h += `</div>`;
 
-  h += `<div class="card"><h2>Yang sudah gabung (${bill.members.length})</h2><table>`;
+  h += `<div class="card"><span class="label">PARTY (${bill.members.length})</span><table style="margin-top:6px">`;
   for (const m of bill.members) {
     const owe = m.id === me.id ? my.owe : m.owe;
-    h += `<tr><td>${esc(m.name)}${m.id === me.id ? ' <span class="muted">(kamu)</span>' : ""}</td><td class="r num">${rp(owe)}</td><td class="r">${m.is_payer ? '<span class="tag ok">Penalang</span>' : statusTag(m.status)}</td></tr>`;
+    h += `<tr><td style="width:34px"><span class="av bob" style="width:30px;height:30px;animation-delay:${(m.name.length % 5) * .2}s">${av(m.avatar)}</span></td>
+      <td>${esc(m.name)}${m.id === me.id ? ' <span class="muted small">(kamu)</span>' : ""}</td><td class="r num px" style="font-size:9px">${rp(owe)}</td><td class="r">${statusTag(m)}</td></tr>`;
   }
-  h += `</table></div><div class="foot">Data diperbarui otomatis setiap beberapa detik.</div>`;
+  h += `</table></div><div class="foot"><span class="px">SPLIT BILL</span><br><button class="link small" id="logout">Bukan ${esc(me.name)}? Ganti pemain</button></div>`;
   app.innerHTML = h;
 
   $("#bar").classList.remove("hide");
-  $("#barOwe").textContent = meMember.is_payer ? "Penalang" : rp(my.owe);
-  $("#barSub").textContent = my.lines.length ? `${my.lines.length} item${adjLabel ? " + " + adjLabel : ""}` : "Belum pilih item";
-  $("#barPay").onclick = () => $("#pay").scrollIntoView({ behavior: "smooth" });
+  $("#barAv").innerHTML = av(me.avatar);
+  if (meMember.is_payer) { $("#barOwe").textContent = "PENALANG"; $("#barOwe").dataset.v = 0; } else countUp($("#barOwe"), my.owe);
+  $("#barSub").textContent = my.lines.length ? `${my.lines.length} item${adjLabel ? " + " + adjLabel : ""}` : "Belum ambil item";
+  $("#barPay").onclick = () => $("#pay").scrollIntoView({ behavior: "smooth", block: "center" });
 
-  if (!bill.locked) app.querySelectorAll(".item").forEach(el => el.onclick = () => toggle(el.dataset.id));
+  if (!bill.locked) app.querySelectorAll(".item").forEach(el => el.onclick = () => toggle(el));
   $("#logout").onclick = () => { store.del("sb_token"); token = null; me = null; joinMode = "form"; render(); };
-  const c = $("#cpy"); if (c) c.onclick = () => copyText(bill.payment_info);
+  const c = $("#cpy"); if (c) c.onclick = () => { SFX.select(); copyText(bill.payment_info); };
   const p = $("#paid"); if (p) p.onclick = () => setStatus("sudah_transfer");
   const u = $("#unpaid"); if (u) u.onclick = () => setStatus("belum");
 }
 
-function toggle(id) {
-  mine.has(id) ? mine.delete(id) : mine.add(id);
-  dirty = true; $("#saving").textContent = "Menyimpan...";
-  const y = window.scrollY; renderMain(); window.scrollTo(0, y);
+function toggle(el) {
+  const id = el.dataset.id, r = el.getBoundingClientRect(), x = r.right - 60, y = r.top + 10;
+  const n = bill.items.find(i => i.id === id).claimers.filter(c => c.id !== me.id).length;
+  const part = Number(el.dataset.price) / (n + 1);
+  if (mine.has(id)) { mine.delete(id); SFX.drop(); floatText(x, y, "−" + rp(part), true); }
+  else { mine.add(id); SFX.coin(); floatText(x, y, "+" + rp(part)); sparks(r.left + 29, r.top + r.height / 2); }
+  dirty = true; $("#saving").textContent = "MENYIMPAN...";
+  const sy = window.scrollY; renderMain(id); window.scrollTo(0, sy);
   clearTimeout(saveTimer); saveTimer = setTimeout(save, 600);
 }
 
@@ -195,18 +232,21 @@ async function save() {
   saving = true; dirty = false;
   try {
     const b = await rpc("sb_set_claims", { p_token: token, p_code: code, p_item_ids: [...mine] });
-    if (!dirty) { bill = b; me = b.me; const y = window.scrollY; renderMain(); window.scrollTo(0, y); }
-    $("#saving").textContent = "Tersimpan ✓";
+    if (!dirty) { bill = b; me = b.me; lastJson = JSON.stringify(b); const y = window.scrollY; renderMain(); window.scrollTo(0, y); }
+    $("#saving").textContent = "TERSIMPAN ✓";
   } catch (e) {
-    toast(e.message, true); $("#saving").textContent = "Gagal menyimpan";
+    toast(e.message, true); $("#saving").textContent = "GAGAL";
     dirty = false; saving = false; return load();
   }
   saving = false;
 }
 
 async function setStatus(s) {
-  try { bill = await rpc("sb_set_my_status", { p_token: token, p_code: code, p_status: s }); me = bill.me; renderMain(); }
-  catch (e) { toast(e.message, true); }
+  try {
+    bill = await rpc("sb_set_my_status", { p_token: token, p_code: code, p_status: s }); me = bill.me; lastJson = JSON.stringify(bill);
+    renderMain();
+    if (s === "sudah_transfer") { SFX.ok(); confetti(); stamp("MISI<br>SELESAI!"); } else SFX.drop();
+  } catch (e) { toast(e.message, true); }
 }
 
 load();
