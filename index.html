@@ -57,9 +57,12 @@ async function load(silent) {
 
 function renderNoCode() {
   app.innerHTML = `<div class="card title-card"><div class="party">${AVATAR_KEYS.map(k => `<span class="av bob">${av(k)}</span>`).join("")}</div>
-    <h1>SPLIT BILL</h1><p class="sub" style="margin-top:0">Masukkan kode tagihan dari temanmu.</p>
+    <h1>SPLIT BILL</h1><p class="sub" style="margin-top:0">Patungan makan tanpa ribet. Foto struknya, bagikan link, biar tiap orang centang pesanannya sendiri.</p>
+    <a class="btn block gold" href="admin.html" style="margin-top:14px">📸 BUAT TAGIHAN</a></div>
+    <div class="card"><span class="label">PUNYA KODE?</span>
+    <p class="small muted" style="margin-top:8px">Masukkan kode tagihan dari temanmu.</p>
     <input id="c" placeholder="KODE" autocapitalize="characters" class="pin" style="letter-spacing:.3em" maxlength="8">
-    <button class="block gold" style="margin-top:14px" id="go">▶ MASUK</button></div>`;
+    <button class="block" style="margin-top:14px" id="go">▶ MASUK</button></div>`;
   $("#go").onclick = () => { const v = $("#c").value.trim(); if (v) location.search = "?b=" + encodeURIComponent(v.toUpperCase()); };
 }
 

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex">
-<title>Admin · Split Bill</title>
+<title>Host · Split Bill</title>
 <meta name="theme-color" content="#f6f7f5">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='%230f7a55'/><text x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='700'>%25</text></svg>">
 <link rel="preload" href="fonts/press-start-2p.woff2" as="font" type="font/woff2" crossorigin>
@@ -40,52 +40,92 @@
 <script src="common.js"></script>
 <script>
 const app = $("#app");
-let master = store.get("sb_master");
+// auth = kunci admin (semua tagihan) atau token sesi host (tagihan sendiri)
+let isAdmin = !!store.get("sb_master");
+let master = store.get("sb_master") || store.get("sb_token");
+let me = null;
 const qs = new URLSearchParams(location.search);
 const code = (qs.get("b") || "").toUpperCase();
 const isNew = qs.has("new");
 let bill = null, editing = false, tab = "rekap", lastJson = "";
+let pickAv = store.get("sb_avatar") || AVATAR_KEYS[Math.floor(Math.random() * AVATAR_KEYS.length)];
 
 soundButton($("#snd")); bgCoins(6);
 app.innerHTML = `<div class="loader"><span class="av">${av("robo")}</span><p>MEMUAT<span class="blink">...</span></p></div>`;
-$("#out").onclick = () => { store.del("sb_master"); location.href = "admin.html"; };
+$("#out").onclick = () => { store.del("sb_master"); store.del("sb_token"); location.href = "admin.html"; };
 
 async function start() {
   if (!master) return renderLogin();
-  try { if (!(await rpc("sb_admin_check", { p_master: master }))) throw 0; }
-  catch { store.del("sb_master"); master = null; return renderLogin(); }
+  try {
+    if (isAdmin) { if (!(await rpc("sb_admin_check", { p_master: master }))) throw 0; }
+    else { me = await rpc("sb_whoami", { p_token: master }); if (!me) throw 0; }
+  } catch {
+    store.del(isAdmin ? "sb_master" : "sb_token"); master = null; isAdmin = false; return renderLogin();
+  }
   $("#out").classList.remove("hide");
+  $(".brand").innerHTML = isAdmin ? `<span class="logo">%</span> ADMIN` : `<span class="av" style="width:30px;height:30px">${av(me.avatar)}</span> ${esc(me.name.toUpperCase().slice(0, 14))}`;
   if (isNew) return renderNew();
   if (code) { await loadBill(); setInterval(() => { if (!editing && document.visibilityState === "visible") loadBill(true); }, 6000); return; }
   renderList();
 }
 
-function renderLogin() {
+function renderLogin(adminMode) {
+  if (adminMode) {
+    app.innerHTML = `<div class="card title-card"><h1>ADMIN</h1><p class="sub" style="margin-top:0">Kunci admin bisa melihat semua tagihan.</p>
+      <label style="text-align:left">KUNCI ADMIN</label><input id="k" type="password" autocomplete="current-password">
+      <button class="block gold" id="go" style="margin-top:14px">▶ MASUK</button>
+      <p class="small" style="margin-bottom:0"><button class="link" id="back">Kembali ke login biasa</button></p></div>`;
+    $("#back").onclick = () => renderLogin();
+    $("#go").onclick = async () => {
+      const k = $("#k").value.trim();
+      try {
+        if (await rpc("sb_admin_check", { p_master: k })) { store.set("sb_master", k); master = k; isAdmin = true; SFX.start(); start(); }
+        else toast("Kunci admin salah", true);
+      } catch (e) { toast(e.message, true); }
+    };
+    return;
+  }
   app.innerHTML = `<div class="card title-card"><div class="party">${AVATAR_KEYS.map(k => `<span class="av bob">${av(k)}</span>`).join("")}</div>
-    <h1>GAME MASTER</h1><p class="sub" style="margin-top:0">Masuk untuk mengelola tagihan.</p>
-    <label style="text-align:left">KUNCI ADMIN</label>
-    <input id="k" type="password" autocomplete="current-password">
-    <button class="block gold" id="go" style="margin-top:14px">▶ MASUK</button>
-    <p class="small muted" style="margin-bottom:0">Kunci disimpan di browser ini, jadi cukup sekali.</p></div>`;
-  $("#go").onclick = async () => {
-    const k = $("#k").value.trim();
+    <h1>JADI HOST</h1><p class="sub" style="margin-top:0">Masuk untuk membuat tagihan dan menagih teman. Pakai nomor dan PIN yang sama kalau sudah pernah main.</p></div>
+    <div class="card"><span class="label">PILIH KARAKTER</span><div style="height:12px"></div>
+    <div class="chars">${AVATAR_KEYS.map(k => `<div class="char ${k === pickAv ? "on" : ""}" data-av="${k}"><span class="av">${av(k)}</span><div class="nm">${esc(AVATARS[k].name.split(" ")[0])}</div></div>`).join("")}</div>
+    <div class="charname" id="cname">${esc(AVATARS[pickAv].name.toUpperCase())}</div></div>
+    <div class="card"><span class="label">DATA HOST</span>
+    <label>NAMA</label><input id="nm" maxlength="40" autocomplete="name" value="${esc(store.get("sb_name") || "")}">
+    <label>NOMOR HP (WA)</label><input id="ph" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxxxx" value="${esc(store.get("sb_phone") || "")}">
+    <label>PIN RAHASIA (4 ANGKA)</label><input id="pin" class="pin" inputmode="numeric" maxlength="4" type="password" placeholder="····">
+    <button class="block gold" id="go" style="margin-top:16px">▶ MASUK</button>
+    <p class="small" style="margin-bottom:0;text-align:center"><button class="link" id="adm">Masuk dengan kunci admin</button></p></div>`;
+  app.querySelectorAll(".char").forEach(el => el.onclick = () => {
+    pickAv = el.dataset.av; SFX.select();
+    app.querySelectorAll(".char").forEach(c => c.classList.toggle("on", c === el));
+    $("#cname").textContent = AVATARS[pickAv].name.toUpperCase();
+  });
+  $("#pin").addEventListener("input", (e) => (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4)));
+  $("#adm").onclick = () => renderLogin(true);
+  $("#go").onclick = async (e) => {
+    const nm = $("#nm").value.trim(), ph = $("#ph").value.trim(), pin = $("#pin").value;
+    if (!nm) return toast("Isi nama dulu", true);
+    if (pin.length !== 4) return toast("PIN harus 4 angka", true);
+    e.target.disabled = true;
     try {
-      if (await rpc("sb_admin_check", { p_master: k })) { store.set("sb_master", k); master = k; SFX.start(); start(); }
-      else toast("Kunci admin salah", true);
-    } catch (e) { toast(e.message, true); }
+      const r = await rpc("sb_login", { p_name: nm, p_phone: ph, p_pin: pin, p_avatar: pickAv });
+      store.set("sb_token", r.token); store.set("sb_name", nm); store.set("sb_phone", ph); store.set("sb_avatar", pickAv);
+      master = r.token; isAdmin = false; SFX.start(); start();
+    } catch (err) { toast(err.message, true); e.target.disabled = false; }
   };
 }
 
 async function renderList() {
   let list = [];
   try { list = await rpc("sb_admin_list", { p_master: master }); } catch (e) { return toast(e.message, true); }
-  let h = `<h1>PILIH LEVEL</h1><p class="sub">Kirim foto struk ke Claude, tempel hasilnya di tagihan baru, lalu bagikan link ke teman.</p>
-    <a class="btn block gold" href="admin.html?new" style="margin-top:14px">+ TAGIHAN BARU</a>`;
-  if (!list.length) h += `<div class="card muted">Belum ada tagihan.</div>`;
+  let h = `<h1>${isAdmin ? "SEMUA TAGIHAN" : "TAGIHANKU"}</h1><p class="sub">Foto struknya, cek hasil bacaannya, lalu bagikan link ke teman.</p>
+    <a class="btn block gold" href="admin.html?new" style="margin-top:14px">📸 TAGIHAN BARU</a>`;
+  if (!list.length) h += `<div class="card muted">Belum ada tagihan. Tekan tombol di atas untuk mulai.</div>`;
   for (const b of list) {
     const done = b.members > 0 && b.lunas >= b.members;
     h += `<a class="card billrow" href="admin.html?b=${b.code}"><div class="row between">
-      <div class="grow"><div class="strong">${esc(b.title)}</div><div class="small muted">${esc([b.place, fmtDate(b.bill_date)].filter(Boolean).join(" · "))}</div></div>
+      <div class="grow"><div class="strong">${esc(b.title)}</div><div class="small muted">${esc([b.place, fmtDate(b.bill_date), isAdmin && b.host ? "host " + b.host : ""].filter(Boolean).join(" · "))}</div></div>
       <div style="text-align:right"><div class="px num" style="font-size:10px">${rp(b.total)}</div>
       <div class="small" style="margin-top:6px">${b.locked ? '<span class="tag">🔒</span> ' : ""}<span class="tag ${done ? "ok" : "wait"}">${b.lunas}/${b.members} LUNAS${done ? " ★" : ""}</span></div></div></div></a>`;
   }
@@ -93,9 +133,11 @@ async function renderList() {
 }
 
 // --------------------------------------------------------------- buat baru
+let rows = [];
+
 function parseItems(txt) {
-  const out = [], errs = [];
-  txt.split(/\n/).map(s => s.trim()).filter(Boolean).forEach((line, i) => {
+  const out = [];
+  txt.split(/\n/).map(s => s.trim()).filter(Boolean).forEach((line) => {
     let qty = 1, name, price, m;
     const parts = line.split("|").map(s => s.trim());
     if (parts.length === 3) [qty, name, price] = parts;
@@ -104,22 +146,105 @@ function parseItems(txt) {
     else if ((m = line.match(/^(.+?)\s+(?:rp\.?\s*)?([\d.,]+)$/i))) [, name, price] = m;
     qty = parseInt(String(qty).replace(/\D/g, "")) || 1;
     price = parseInt(String(price ?? "").replace(/\D/g, ""));
-    if (!name || isNaN(price)) errs.push(`Baris ${i + 1} tidak terbaca: ${line}`);
-    else out.push({ qty, name, price });
+    if (name && !isNaN(price)) out.push({ qty, name, price });
   });
-  return { items: out, errs };
+  return out;
 }
 
-function renderNew() {
+// perkecil foto di HP sebelum dikirim (lebih cepat dan hemat kuota)
+function shrinkImage(file, maxSide = 1600) {
+  return new Promise((resolve, reject) => {
+    const img = new Image(), url = URL.createObjectURL(file);
+    img.onload = () => {
+      const k = Math.min(1, maxSide / Math.max(img.width, img.height));
+      const c = document.createElement("canvas"); c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      const d = c.toDataURL("image/jpeg", 0.85); resolve({ data: d.split(",")[1], preview: d });
+    };
+    img.onerror = () => reject(new Error("Foto tidak bisa dibuka. Coba format JPG atau PNG."));
+    img.src = url;
+  });
+}
+
+async function scanReceipt(file) {
+  const box = $("#scanbox");
+  box.innerHTML = `<div class="loader" style="padding:24px 0"><span class="av">${av("robo")}</span><p>MEMBACA STRUK<span class="blink">...</span></p></div>`;
+  try {
+    const img = await shrinkImage(file);
+    box.innerHTML = `<div class="row" style="align-items:center"><img src="${img.preview}" style="width:72px;height:96px;object-fit:cover;border:var(--b);border-radius:8px">
+      <div class="grow"><div class="loader" style="padding:0;text-align:left"><span class="av" style="width:40px;height:40px">${av("robo")}</span><p style="margin-top:8px">MEMBACA STRUK<span class="blink">...</span></p></div></div></div>`;
+    const r = await fetch(`${SB_URL}/functions/v1/scan-struk`, {
+      method: "POST", headers: { apikey: SB_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ token: master, image: img.data, mime: "image/jpeg" }),
+    });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !d.ok) throw new Error(d.error || "Gagal membaca struk");
+    rows = d.items.map(i => ({ ...i }));
+    if (d.total) $("#total").value = Math.round(d.total);
+    if (d.place) { $("#place").value = d.place; if (!$("#title").value) $("#title").value = "Makan di " + d.place; }
+    if (/^\d{4}-\d{2}-\d{2}$/.test(d.date || "")) $("#date").value = d.date;
+    drawRows();
+    const sub = rows.reduce((a, i) => a + i.qty * i.price, 0);
+    const warn = d.subtotal && Math.abs(d.subtotal - sub) > 1 ? `<br>⚠️ Subtotal di struk ${rp(d.subtotal)}, hasil bacaan ${rp(sub)}. Cek lagi item yang terlewat atau salah harga.` : "";
+    box.innerHTML = `<div class="notice ok" style="margin-top:0"><span>🤖</span><div><b>${rows.length} ITEM TERBACA!</b>Cek lagi nama, jumlah, dan harganya. AI kadang salah baca.${d.notes ? "<br>Catatan: " + esc(d.notes) : ""}${warn}</div></div>
+      <button class="sm ghost" id="rescan" style="margin-top:10px">📸 FOTO ULANG</button>`;
+    $("#rescan").onclick = () => $("#file").click();
+    SFX.ok(); confetti(30);
+  } catch (e) {
+    box.innerHTML = `<div class="notice"><span>⚠️</span><div><b>GAGAL MEMBACA</b>${esc(e.message)}</div></div><button class="sm ghost" id="rescan" style="margin-top:10px">📸 COBA LAGI</button>`;
+    $("#rescan").onclick = () => $("#file").click(); SFX.bad();
+  }
+}
+
+function drawRows() {
+  const el = $("#rows");
+  el.innerHTML = rows.map((r, i) => `<div class="row ed" style="gap:6px;margin-top:8px" data-i="${i}">
+      <input data-f="qty" inputmode="numeric" value="${r.qty}" style="width:48px;text-align:center">
+      <input data-f="name" value="${esc(r.name)}" placeholder="Nama item" class="grow">
+      <input data-f="price" inputmode="numeric" value="${r.price || ""}" placeholder="Harga" style="width:96px;text-align:right">
+      <button class="sm danger" data-del="${i}" aria-label="Hapus item">✕</button></div>`).join("") ||
+    `<p class="small muted" style="margin:6px 0 0">Belum ada item. Scan struk atau tambah manual.</p>`;
+  el.querySelectorAll("input").forEach(inp => inp.oninput = () => {
+    const i = +inp.closest("[data-i]").dataset.i, f = inp.dataset.f;
+    rows[i][f] = f === "name" ? inp.value : parseInt(inp.value.replace(/\D/g, "")) || 0;
+    updTotals();
+  });
+  el.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { rows.splice(+b.dataset.del, 1); drawRows(); });
+  updTotals();
+}
+
+function updTotals() {
+  const sub = rows.reduce((a, i) => a + (i.qty || 1) * (i.price || 0), 0);
+  const tot = parseInt($("#total").value.replace(/\D/g, ""));
+  let h = rows.length ? `Subtotal item: <b>${rp(sub)}</b>` : "";
+  if (sub && tot) {
+    const d = tot - sub;
+    h += d === 0 ? " · tanpa pajak atau service." :
+      `<br>${d > 0 ? "Pajak & service" : "Diskon"}: <b>${rp(Math.abs(d))}</b> (${(Math.abs(d) / sub * 100).toFixed(1).replace(".", ",")}% dari subtotal), dibagi sebanding ke tiap orang.`;
+  }
+  $("#adj").innerHTML = h;
+}
+
+async function renderNew() {
   const today = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  app.innerHTML = `<h1>LEVEL BARU</h1>
-  <div class="card"><span class="label gold">DAFTAR ITEM</span><div style="height:6px"></div>
-    <p class="small muted" style="margin-top:0">Tempel teks dari Claude. Satu baris satu item: <b>jumlah | nama | harga satuan</b>.</p>
-    <textarea id="items" placeholder="2 | Nasi Goreng Spesial | 25000&#10;3 | Es Teh Manis | 5000&#10;1 | Pizza Large | 80000"></textarea>
-    <div id="prev"></div>
+  const pn = isAdmin ? store.get("sb_payer_name") || "" : me.name;
+  const pp = isAdmin ? store.get("sb_payer_phone") || "" : "0" + String(me.phone).replace(/^62/, "");
+  rows = [];
+  app.innerHTML = `<h1>TAGIHAN BARU</h1>
+  <div class="card"><span class="label gold">FOTO STRUK</span>
+    <p class="small muted" style="margin-top:8px">Foto struknya, AI akan membaca item dan totalnya. Pastikan struk lurus, terang, dan terlihat utuh.</p>
+    <input type="file" id="file" accept="image/*" class="hide">
+    <div id="scanbox"><button class="block gold" id="pick">📸 FOTO / PILIH STRUK</button></div>
+  </div>
+  <div class="card"><span class="label">DAFTAR ITEM</span>
+    <div class="row small muted" style="gap:6px;margin-top:10px;font-family:var(--px);font-size:7px"><span style="width:48px;text-align:center">QTY</span><span class="grow">NAMA</span><span style="width:96px;text-align:right">HARGA SATUAN</span><span style="width:30px"></span></div>
+    <div id="rows"></div>
+    <div class="row" style="gap:8px;margin-top:12px"><button class="sm soft" id="addRow">+ TAMBAH ITEM</button><button class="sm ghost" id="pasteBtn">TEMPEL TEKS</button></div>
+    <div id="pasteBox" class="hide"><textarea id="items" style="margin-top:10px" placeholder="2 | Nasi Goreng | 25000&#10;3 | Es Teh | 5000"></textarea>
+      <button class="sm" id="pasteGo" style="margin-top:8px">MASUKKAN</button></div>
     <label>TOTAL AKHIR STRUK</label><div class="small muted" style="margin:-4px 0 8px">Sudah termasuk pajak, service, dan diskon.</div>
-    <input id="total" inputmode="numeric" placeholder="167475">
-    <div id="adj" class="small muted" style="margin-top:6px"></div>
+    <input id="total" inputmode="numeric" placeholder="Contoh 167475">
+    <div id="adj" class="small muted" style="margin-top:8px"></div>
   </div>
   <div class="card"><span class="label">INFO TAGIHAN</span>
     <label>JUDUL</label><input id="title" placeholder="Makan malam">
@@ -127,37 +252,27 @@ function renderNew() {
     <div class="grow"><label>TANGGAL</label><input id="date" type="date" value="${today}"></div></div>
   </div>
   <div class="card"><span class="label">PENALANG</span>
-    <p class="small muted" style="margin-top:8px">Orang yang membayar ke kasir. Kalau nomornya sama dengan salah satu peserta, ia otomatis ditandai penalang.</p>
-    <label>NAMA</label><input id="pn" value="${esc(store.get("sb_payer_name") || "")}">
-    <label>NOMOR HP</label><input id="pp" inputmode="tel" value="${esc(store.get("sb_payer_phone") || "")}">
-    <label>INFO TRANSFER</label><textarea id="pi" style="min-height:80px;font-family:inherit" placeholder="BCA 1234567890 a.n. Ilman&#10;DANA 0877xxxx">${esc(store.get("sb_payer_info") || "")}</textarea>
+    <p class="small muted" style="margin-top:8px">Orang yang membayar ke kasir. Teman akan transfer ke sini.</p>
+    <label>NAMA</label><input id="pn" value="${esc(pn)}">
+    <label>NOMOR HP</label><input id="pp" inputmode="tel" value="${esc(pp)}">
+    <label>INFO TRANSFER</label><textarea id="pi" style="min-height:80px" placeholder="BCA 1234567890 a.n. Nama&#10;DANA 08xxxx">${esc(store.get("sb_payer_info") || "")}</textarea>
   </div>
   <button class="block gold" id="create" style="margin-top:20px">▶ BUAT TAGIHAN</button>`;
-  const upd = () => {
-    const { items, errs } = parseItems($("#items").value);
-    const sub = items.reduce((a, i) => a + i.qty * i.price, 0);
-    let h = "";
-    if (items.length) {
-      h += `<table class="prev" style="margin-top:10px">` + items.map(i => `<tr><td>${i.qty}×</td><td>${esc(i.name)}</td><td class="r num">${rp(i.qty * i.price)}</td></tr>`).join("") +
-        `<tr><td></td><td class="strong">Subtotal</td><td class="r num strong">${rp(sub)}</td></tr></table>`;
-    }
-    h += errs.map(e => `<div class="small err">${esc(e)}</div>`).join("");
-    $("#prev").innerHTML = h;
-    const tot = parseInt($("#total").value.replace(/\D/g, ""));
-    if (sub && tot) {
-      const d = tot - sub;
-      $("#adj").innerHTML = d === 0 ? "Tanpa pajak atau service." :
-        `${d > 0 ? "Pajak & service" : "Diskon"}: <b>${rp(Math.abs(d))}</b> (${(Math.abs(d) / sub * 100).toFixed(1).replace(".", ",")}% dari subtotal), dibagi sebanding ke tiap orang.`;
-    } else $("#adj").textContent = "";
-  };
-  $("#items").oninput = upd; $("#total").oninput = upd;
+  drawRows();
+  $("#pick").onclick = () => $("#file").click();
+  $("#file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) scanReceipt(f); };
+  $("#total").oninput = updTotals;
+  $("#addRow").onclick = () => { rows.push({ qty: 1, name: "", price: 0 }); drawRows(); const ins = $("#rows").querySelectorAll('[data-f="name"]'); ins[ins.length - 1].focus(); };
+  $("#pasteBtn").onclick = () => $("#pasteBox").classList.toggle("hide");
+  $("#pasteGo").onclick = () => { const p = parseItems($("#items").value); if (!p.length) return toast("Teks belum terbaca", true); rows.push(...p); $("#items").value = ""; $("#pasteBox").classList.add("hide"); drawRows(); };
   $("#create").onclick = async (e) => {
-    const { items, errs } = parseItems($("#items").value);
+    const items = rows.filter(r => r.name.trim()).map(r => ({ qty: r.qty || 1, name: r.name.trim(), price: r.price || 0 }));
     const tot = parseInt($("#total").value.replace(/\D/g, ""));
     if (!items.length) return toast("Daftar item masih kosong", true);
-    if (errs.length) return toast("Ada baris item yang belum terbaca", true);
+    if (items.some(i => !i.price)) return toast("Ada item yang harganya belum diisi", true);
     if (isNaN(tot)) return toast("Isi total akhir struk", true);
-    store.set("sb_payer_name", $("#pn").value.trim()); store.set("sb_payer_phone", $("#pp").value.trim()); store.set("sb_payer_info", $("#pi").value.trim());
+    if (isAdmin) { store.set("sb_payer_name", $("#pn").value.trim()); store.set("sb_payer_phone", $("#pp").value.trim()); }
+    store.set("sb_payer_info", $("#pi").value.trim());
     e.target.disabled = true; e.target.textContent = "MEMBUAT...";
     try {
       const b = await rpc("sb_admin_create_bill", { p_master: master, p_title: $("#title").value, p_place: $("#place").value,
@@ -276,7 +391,7 @@ function renderBill() {
       <button class="block ${bill.locked ? "soft" : "gold"}" id="lock">${bill.locked ? "🔓 BUKA KUNCI" : "🔒 KUNCI TAGIHAN"}</button></div>
       <div class="card"><span class="label">ZONA BAHAYA</span><div style="height:8px"></div><button class="block danger" id="delBill">HAPUS TAGIHAN</button></div>`;
   }
-  h += `<p style="text-align:center;margin-top:20px"><a href="admin.html" class="px" style="color:var(--acc);font-size:9px">◀ SEMUA TAGIHAN</a></p>`;
+  h += `<p style="text-align:center;margin-top:20px"><a href="admin.html" class="px" style="color:var(--acc);font-size:9px">◀ DAFTAR TAGIHAN</a></p>`;
   app.innerHTML = h;
   window.scrollTo(0, y);
   bind();

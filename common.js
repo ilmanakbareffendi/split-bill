@@ -102,8 +102,15 @@ const SFX = {
   toggle() { this.on = !this.on; store.set("sb_sound", this.on ? "on" : "off"); if (this.on) this.select(); return this.on; },
 };
 
+// ikon speaker pixel: menyala dengan gelombang suara, mati dengan tanda silang
+const SPEAKER_ON = '<svg viewBox="0 0 12 10" width="16" height="14" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="M0 3h2v4H0zM2 2h1v6H2zM3 1h1v8H3zM4 0h1v10H4zM7 3h1v4H7zM9 1h1v8H9zM8 2h1v1H8zM8 7h1v1H8zM10 2h1v6h-1z"/></svg>';
+const SPEAKER_OFF = '<svg viewBox="0 0 12 10" width="16" height="14" shape-rendering="crispEdges" aria-hidden="true"><path fill="currentColor" d="M0 3h2v4H0zM2 2h1v6H2zM3 1h1v8H3zM4 0h1v10H4zM7 3h1v1H7zM8 4h1v1H8zM9 5h1v1H9zM10 6h1v1h-1zM10 3h1v1h-1zM9 4h1v1H9zM8 5h1v1H8zM7 6h1v1H7z"/></svg>';
 function soundButton(el) {
-  const paint = () => (el.textContent = SFX.on ? "♪ ON" : "♪ OFF");
+  const paint = () => {
+    el.innerHTML = (SFX.on ? SPEAKER_ON : SPEAKER_OFF) + `<span>${SFX.on ? "ON" : "OFF"}</span>`;
+    el.setAttribute("aria-label", SFX.on ? "Matikan suara" : "Nyalakan suara");
+    el.classList.toggle("off", !SFX.on);
+  };
   paint(); el.onclick = () => { SFX.toggle(); paint(); };
 }
 
