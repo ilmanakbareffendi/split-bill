@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#f6f7f5">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='%230f7a55'/><text x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='700'>%25</text></svg>">
 <link rel="preload" href="fonts/press-start-2p.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=20261122b">
+<link rel="stylesheet" href="style.css?v=20261122c">
 <style>
   .billrow { display: block; text-decoration: none; color: inherit; }
   .stat { flex: 1; background: #fff; border: var(--b); border-radius: 10px; padding: 10px; box-shadow: 3px 3px 0 var(--ink); }
@@ -36,8 +36,8 @@
   <div id="app"><div class="spin"></div></div>
 </div>
 
-<script src="avatars.js?v=20261122b"></script>
-<script src="common.js?v=20261122b"></script>
+<script src="avatars.js?v=20261122c"></script>
+<script src="common.js?v=20261122c"></script>
 <script>
 const app = $("#app");
 // auth = kunci admin (semua tagihan) atau token sesi host (tagihan sendiri)
@@ -65,7 +65,7 @@ async function start() {
   $("#out").classList.remove("hide");
   $(".brand").innerHTML = isAdmin ? `<span class="logo">%</span> ADMIN` : `<span class="av" style="width:30px;height:30px">${av(me.avatar)}</span> ${esc(me.name.toUpperCase().slice(0, 14))}`;
   if (isNew) return renderNew();
-  if (code) { await loadBill(); setInterval(() => { if (!editing && document.visibilityState === "visible") loadBill(true); }, 6000); return; }
+  if (code) { await loadBill(); setInterval(() => { if (!isBusy() && document.visibilityState === "visible") loadBill(true); }, 6000); return; }
   renderList();
 }
 
@@ -168,6 +168,12 @@ function shrinkImage(file, maxSide = 1600) {
 
 async function scanReceipt(file) {
   const box = $("#scanbox");
+  // scan butuh sesi pemain (untuk batas harian); admin memakai sesi pemain di HP ini kalau ada
+  const scanToken = isAdmin ? store.get("sb_token") : master;
+  if (!scanToken) {
+    box.innerHTML = `<div class="notice"><span>⚠️</span><div><b>BELUM BISA SCAN</b>Scan struk butuh login sebagai host (nama, HP, PIN). Isi item manual, atau keluar lalu masuk sebagai host.</div></div>`;
+    return;
+  }
   box.innerHTML = `<div class="loader" style="padding:24px 0"><span class="av">${av("robo")}</span><p>MEMBACA STRUK<span class="blink">...</span></p></div>`;
   try {
     const img = await shrinkImage(file);
@@ -175,7 +181,7 @@ async function scanReceipt(file) {
       <div class="grow"><div class="loader" style="padding:0;text-align:left"><span class="av" style="width:40px;height:40px">${av("robo")}</span><p style="margin-top:8px">MEMBACA STRUK<span class="blink">...</span></p></div></div></div>`;
     const r = await fetch(`${SB_URL}/functions/v1/scan-struk`, {
       method: "POST", headers: { apikey: SB_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ token: master, image: img.data, mime: "image/jpeg" }),
+      body: JSON.stringify({ token: scanToken, image: img.data, mime: "image/jpeg" }),
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || "Gagal membaca struk");
@@ -270,7 +276,7 @@ async function renderNew() {
     const items = rows.filter(r => r.name.trim()).map(r => ({ qty: r.qty || 1, name: r.name.trim(), price: r.price || 0 }));
     const tot = parseInt($("#total").value.replace(/\D/g, ""));
     if (!items.length) return toast("Daftar item masih kosong", true);
-    if (items.some(i => !i.price)) return toast("Ada item yang harganya belum diisi", true);
+    if (items.some(i => !i.price)) return toast("Ada item yang harganya belum diisi. Hapus kalau gratis.", true);
     if (isNaN(tot)) return toast("Isi total akhir struk", true);
     if (isAdmin) { store.set("sb_payer_name", $("#pn").value.trim()); store.set("sb_payer_phone", $("#pp").value.trim()); }
     store.set("sb_payer_info", $("#pi").value.trim());
@@ -284,6 +290,14 @@ async function renderNew() {
   };
 }
 
+// Jangan segarkan halaman saat host sedang mengetik atau mengubah sesuatu.
+function isBusy() {
+  if (editing || tab === "set") return true;
+  const a = document.activeElement;
+  if (a && app.contains(a) && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)) return true;
+  return ["#nName", "#nPrice"].some(sel => { const el = $(sel); return el && el.value.trim(); });
+}
+
 // --------------------------------------------------------------- detail
 async function loadBill(silent) {
   try {
@@ -291,7 +305,7 @@ async function loadBill(silent) {
     const j = JSON.stringify(b);
     if (silent && j === lastJson) return;
     lastJson = j; bill = b;
-    if (!editing) renderBill();
+    if (!isBusy() || !silent) renderBill();
     if (!silent && store.get("sb_fresh") === code) { store.del("sb_fresh"); confetti(50); stamp("LEVEL<br>DIBUAT!"); }
   } catch (e) { if (!silent) app.innerHTML = `<div class="card">${esc(e.message)}</div>`; }
 }
@@ -376,7 +390,7 @@ function renderBill() {
         <div class="act" style="margin-top:4px"><button class="sm ghost" data-edit="${it.id}">UBAH</button><button class="sm danger" data-del="${it.id}">HAPUS</button></div></div></div>`;
     }
     h += `<div class="row ed" style="margin-top:12px;gap:6px"><input id="nName" placeholder="Nama item" class="grow"><span class="money sm" style="width:120px;flex:none"><input id="nPrice" placeholder="Harga" inputmode="numeric"></span><button class="sm" id="add">+ TAMBAH</button></div>
-      <p class="small muted" style="margin-bottom:0">Kalau subtotal berubah, pajak tetap dihitung dari total akhir struk di tab Pengaturan.</p></div>`;
+      <p class="small muted" style="margin-bottom:0">Kalau subtotal berubah, pajak tetap dihitung dari total akhir struk di tab SETELAN.</p></div>`;
   }
 
   if (tab === "set") {
@@ -438,7 +452,11 @@ function bind() {
     $("#eN").focus();
     moneyInput($("#eP"));
     $("#eC").onclick = () => { editing = false; renderBill(); };
-    $("#eS").onclick = () => { editing = false; act("sb_admin_item", { p_action: "update", p_item_id: it.id, p_name: $("#eN").value, p_price: parseInt($("#eP").value.replace(/\D/g, "")) }, "Item diperbarui"); };
+    $("#eS").onclick = () => {
+      const price = numOf($("#eP").value);
+      if (!$("#eN").value.trim() || isNaN(price)) return toast("Isi nama dan harga", true);
+      editing = false; act("sb_admin_item", { p_action: "update", p_item_id: it.id, p_name: $("#eN").value, p_price: price }, "Item diperbarui");
+    };
   });
   ["#sTotal", "#nPrice"].forEach(s => { const el = $(s); if (el) moneyInput(el); });
   const add = $("#add"); if (add) add.onclick = () => {
@@ -447,8 +465,11 @@ function bind() {
     act("sb_admin_item", { p_action: "add", p_name: n, p_price: p }, "Item ditambahkan");
   };
   if (tab === "set" || tab === "items") app.querySelectorAll("input, textarea").forEach(i => { i.onfocus = () => (editing = true); });
-  const ss = $("#saveSet"); if (ss) ss.onclick = () => { editing = false; act("sb_admin_update_bill", { p_patch: {
-    title: $("#sTitle").value, place: $("#sPlace").value, bill_date: $("#sDate").value, total: parseInt($("#sTotal").value.replace(/\D/g, "")) || 0,
+  const ss = $("#saveSet"); if (ss) ss.onclick = () => {
+    const tot = numOf($("#sTotal").value);
+    if (!tot) return toast("Total akhir struk wajib diisi", true);
+    editing = false; act("sb_admin_update_bill", { p_patch: {
+    title: $("#sTitle").value, place: $("#sPlace").value, bill_date: $("#sDate").value, total: tot,
     payer_name: $("#sPn").value, payer_phone: $("#sPp").value, payment_info: $("#sPi").value } }, "Tersimpan"); };
   const lk = $("#lock"); if (lk) lk.onclick = () => act("sb_admin_update_bill", { p_patch: { locked: !bill.locked } }, bill.locked ? "Kunci dibuka" : "Tagihan dikunci");
   const db = $("#delBill"); if (db) db.onclick = () => twoTap(db, "KETUK LAGI UNTUK HAPUS", async () => {

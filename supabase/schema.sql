@@ -384,7 +384,10 @@ begin
   if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
     raise exception 'Daftar item kosong';
   end if;
-  if jsonb_array_length(p_items) > 150 then raise exception 'Item terlalu banyak'; end if;
+  if jsonb_array_length(p_items) > 150
+     or (select sum(least(greatest(coalesce((e->>'qty')::int, 1), 1), 50)) from jsonb_array_elements(p_items) e) > 300 then
+    raise exception 'Item terlalu banyak (maksimal 300 porsi per tagihan)';
+  end if;
   select * into hp from sb_people where id = v_host;
   insert into sb_bills (code, title, place, bill_date, total, payer_name, payer_phone, payment_info, host_id)
   values (v_code, coalesce(nullif(btrim(p_title),''), 'Tagihan'), nullif(btrim(p_place),''), p_date, p_total,
@@ -471,8 +474,9 @@ begin
     raise exception 'Tidak diizinkan';
   end if;
   update sb_people set pin_hash = null, fails = 0, locked_until = null where id = p_person;
+  if not found then return false; end if;
   delete from sb_sessions where person_id = p_person;
-  return found;
+  return true;
 end $$;
 
 create or replace function public.sb_admin_delete_bill(p_master text, p_code text)
