@@ -58,11 +58,14 @@ Deno.serve(async (req) => {
   if (!/^image\/(jpeg|png|webp|heic|heif)$/.test(mime)) return json({ error: "Format foto tidak didukung" }, 415);
 
   // 1. cek sesi dan batas scan harian lewat database
-  const sbUrl = Deno.env.get("SUPABASE_URL")!;
-  const sbKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+  const sbUrl = Deno.env.get("SUPABASE_URL") || "https://mdhnvznrtjzhgcvletbq.supabase.co";
+  // kunci publik (publishable) memang aman dipakai di sini; fungsi sb_scan_allow sendiri memeriksa token
+  const sbKey = Deno.env.get("SUPABASE_ANON_KEY") || "sb_publishable_qPeLUrizilLAUD5OGoJXHA_ZR3xVQUY";
+  const h: Record<string, string> = { apikey: sbKey, "Content-Type": "application/json" };
+  if (sbKey.startsWith("eyJ")) h.Authorization = `Bearer ${sbKey}`;
   const allow = await fetch(`${sbUrl}/rest/v1/rpc/sb_scan_allow`, {
     method: "POST",
-    headers: { apikey: sbKey, Authorization: `Bearer ${sbKey}`, "Content-Type": "application/json" },
+    headers: h,
     body: JSON.stringify({ p_token: token }),
   }).then((r) => r.json()).catch(() => null);
   if (!allow || !allow.ok) return json({ error: allow?.error || "Tidak bisa memeriksa sesi" }, 403);
