@@ -73,21 +73,28 @@ Deno.serve(async (req) => {
   // 2. baca struk dengan Gemini
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) return json({ error: "Kunci Gemini belum dipasang" }, 500);
-  const model = Deno.env.get("GEMINI_MODEL") || "gemini-flash-latest";
-  const g = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: "POST",
-    headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      contents: [{ parts: [{ inline_data: { mime_type: mime, data: image } }, { text: PROMPT }] }],
-      generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: SCHEMA },
-    }),
+  // urutan model: utama, lalu cadangan bila model sedang penuh atau tidak tersedia
+  const models = (Deno.env.get("GEMINI_MODELS") || "gemini-flash-latest,gemini-flash-lite-latest,gemini-3.1-flash-lite,gemini-2.5-flash")
+    .split(",").map((m) => m.trim()).filter(Boolean);
+  const payload = JSON.stringify({
+    contents: [{ parts: [{ inline_data: { mime_type: mime, data: image } }, { text: PROMPT }] }],
+    generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: SCHEMA },
   });
-  const gj = await g.json().catch(() => null);
-  if (!g.ok) {
-    const msg = gj?.error?.status === "RESOURCE_EXHAUSTED"
-      ? "Kuota AI sedang penuh. Coba lagi sebentar lagi atau isi manual."
-      : "AI gagal membaca struk. Coba foto ulang atau isi manual.";
-    return json({ error: msg, detail: gj?.error?.message }, 502);
+  let gj: any = null, model = "", lastErr = "";
+  outer: for (const m of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const g = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+        method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" }, body: payload,
+      });
+      const body = await g.json().catch(() => null);
+      if (g.ok) { gj = body; model = m; break outer; }
+      lastErr = `${m}: ${g.status} ${body?.error?.message || ""}`.slice(0, 300);
+      if (g.status === 503 || g.status === 500) { if (attempt === 0) { await new Promise((r) => setTimeout(r, 1200)); continue; } }
+      break; // 404 model tidak ada, 429 kuota model habis, dll: langsung ke model berikutnya
+    }
+  }
+  if (!gj) {
+    return json({ error: "AI sedang sibuk. Coba lagi sebentar lagi atau isi item manual.", detail: lastErr }, 502);
   }
   const text = gj?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text || "").join("") || "";
   let data;
