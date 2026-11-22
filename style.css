@@ -1,3 +1,8 @@
+/* Angka memakai Chakra Petch (jelas dibaca), huruf tetap font pixel. unicode-range membuat
+   browser hanya mengambil digit dan tanda angka dari font ini. */
+@font-face { font-family: "NumUi"; src: url("fonts/chakra-petch-600.woff2") format("woff2"); font-weight: 400 600; font-display: swap; unicode-range: U+0030-0039, U+002B, U+002C, U+002E, U+0025, U+2212, U+00D7, U+00F7; }
+@font-face { font-family: "NumUi"; src: url("fonts/chakra-petch-700.woff2") format("woff2"); font-weight: 700 900; font-display: swap; unicode-range: U+0030-0039, U+002B, U+002C, U+002E, U+0025, U+2212, U+00D7, U+00F7; }
+@font-face { font-family: "NumPx"; src: url("fonts/chakra-petch-700.woff2") format("woff2"); font-weight: 400 900; font-display: swap; size-adjust: 128%; unicode-range: U+0030-0039, U+002B, U+002C, U+002E, U+0025, U+2212, U+00D7, U+00F7; }
 @font-face { font-family: "Press Start 2P"; src: url("fonts/press-start-2p.woff2") format("woff2"); font-weight: 400; font-display: swap; }
 @font-face { font-family: "Pixelify Sans"; src: url("fonts/pixelify-sans-400.woff2") format("woff2"); font-weight: 400 500; font-display: swap; }
 @font-face { font-family: "Pixelify Sans"; src: url("fonts/pixelify-sans-600.woff2") format("woff2"); font-weight: 600; font-display: swap; }
@@ -8,8 +13,8 @@
   --gold: #ffc400; --gold-s: #d9a300; --gold-soft: #fff5ca; --gold-ink: #5c3d00;
   --pacc: #6a2bc2; --psoft: #f4effc; --red: #dc2626; --red-soft: #fef2f2;
   --ink: #1b1b2f; --muted: #5b6b60; --paper: #f4f8f3; --card: #fff; --line: #e1e8df;
-  --px: "Press Start 2P", ui-monospace, monospace;
-  --ui: "Pixelify Sans", system-ui, sans-serif;
+  --px: "NumPx", "Press Start 2P", ui-monospace, monospace;
+  --ui: "NumUi", "Pixelify Sans", system-ui, sans-serif;
   --spring: cubic-bezier(.34, 1.56, .64, 1);
   --b: 3px solid var(--ink);
   --sh: 4px 4px 0 var(--ink);
@@ -201,3 +206,10 @@ td.r, th.r { text-align: right; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* kolom uang dengan awalan Rp */
+.money { position: relative; display: block; }
+.money::before { content: "Rp"; position: absolute; left: 12px; top: 50%; transform: translateY(-50%); font-family: var(--px); font-size: 9px; color: var(--muted); pointer-events: none; }
+.money input { padding-left: 38px; }
+.money.sm::before { left: 8px; font-size: 7px; }
+.money.sm input { padding-left: 26px; }

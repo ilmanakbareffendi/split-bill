@@ -22,6 +22,12 @@ async function rpc(fn, args) {
   return d;
 }
 
+// format angka rupiah di kolom isian: 138600 -> "138.600"
+const fmtNum = (n) => { n = parseInt(String(n ?? "").replace(/\D/g, "")); return isNaN(n) ? "" : n.toLocaleString("id-ID"); };
+const numOf = (s) => parseInt(String(s ?? "").replace(/\D/g, ""));
+function moneyInput(el, after) {
+  el.addEventListener("input", () => { el.value = fmtNum(el.value); if (after) after(); });
+}
 const rp = (n) => "Rp" + Math.round(Number(n) || 0).toLocaleString("id-ID");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const $ = (s, el = document) => el.querySelector(s);

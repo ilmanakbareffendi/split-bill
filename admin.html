@@ -180,7 +180,7 @@ async function scanReceipt(file) {
     const d = await r.json().catch(() => ({}));
     if (!r.ok || !d.ok) throw new Error(d.error || "Gagal membaca struk");
     rows = d.items.map(i => ({ ...i }));
-    if (d.total) $("#total").value = Math.round(d.total);
+    if (d.total) $("#total").value = fmtNum(Math.round(d.total));
     if (d.place) { $("#place").value = d.place; if (!$("#title").value) $("#title").value = "Makan di " + d.place; }
     if (/^\d{4}-\d{2}-\d{2}$/.test(d.date || "")) $("#date").value = d.date;
     drawRows();
@@ -201,12 +201,13 @@ function drawRows() {
   el.innerHTML = rows.map((r, i) => `<div class="row ed" style="gap:6px;margin-top:8px" data-i="${i}">
       <input data-f="qty" inputmode="numeric" value="${r.qty}" style="width:48px;text-align:center">
       <input data-f="name" value="${esc(r.name)}" placeholder="Nama item" class="grow">
-      <input data-f="price" inputmode="numeric" value="${r.price || ""}" placeholder="Harga" style="width:96px;text-align:right">
+      <span class="money sm" style="width:112px;flex:none"><input data-f="price" inputmode="numeric" value="${fmtNum(r.price)}" placeholder="Harga" style="text-align:right"></span>
       <button class="sm danger" data-del="${i}" aria-label="Hapus item">✕</button></div>`).join("") ||
     `<p class="small muted" style="margin:6px 0 0">Belum ada item. Scan struk atau tambah manual.</p>`;
   el.querySelectorAll("input").forEach(inp => inp.oninput = () => {
     const i = +inp.closest("[data-i]").dataset.i, f = inp.dataset.f;
-    rows[i][f] = f === "name" ? inp.value : parseInt(inp.value.replace(/\D/g, "")) || 0;
+    if (f === "price") inp.value = fmtNum(inp.value);
+    rows[i][f] = f === "name" ? inp.value : numOf(inp.value) || 0;
     updTotals();
   });
   el.querySelectorAll("[data-del]").forEach(b => b.onclick = () => { rows.splice(+b.dataset.del, 1); drawRows(); });
@@ -237,13 +238,13 @@ async function renderNew() {
     <div id="scanbox"><button class="block gold" id="pick">📸 FOTO / PILIH STRUK</button></div>
   </div>
   <div class="card"><span class="label">DAFTAR ITEM</span>
-    <div class="row small muted" style="gap:6px;margin-top:10px;font-family:var(--px);font-size:7px"><span style="width:48px;text-align:center">QTY</span><span class="grow">NAMA</span><span style="width:96px;text-align:right">HARGA SATUAN</span><span style="width:30px"></span></div>
+    <div class="row small muted" style="gap:6px;margin-top:10px;font-family:var(--px);font-size:7px"><span style="width:48px;text-align:center">QTY</span><span class="grow">NAMA</span><span style="width:112px;text-align:right">HARGA SATUAN</span><span style="width:30px"></span></div>
     <div id="rows"></div>
     <div class="row" style="gap:8px;margin-top:12px"><button class="sm soft" id="addRow">+ TAMBAH ITEM</button><button class="sm ghost" id="pasteBtn">TEMPEL TEKS</button></div>
     <div id="pasteBox" class="hide"><textarea id="items" style="margin-top:10px" placeholder="2 | Nasi Goreng | 25000&#10;3 | Es Teh | 5000"></textarea>
       <button class="sm" id="pasteGo" style="margin-top:8px">MASUKKAN</button></div>
     <label>TOTAL AKHIR STRUK</label><div class="small muted" style="margin:-4px 0 8px">Sudah termasuk pajak, service, dan diskon.</div>
-    <input id="total" inputmode="numeric" placeholder="Contoh 167475">
+    <div class="money"><input id="total" inputmode="numeric" placeholder="Contoh 167.475"></div>
     <div id="adj" class="small muted" style="margin-top:8px"></div>
   </div>
   <div class="card"><span class="label">INFO TAGIHAN</span>
@@ -261,7 +262,7 @@ async function renderNew() {
   drawRows();
   $("#pick").onclick = () => $("#file").click();
   $("#file").onchange = (e) => { const f = e.target.files[0]; e.target.value = ""; if (f) scanReceipt(f); };
-  $("#total").oninput = updTotals;
+  moneyInput($("#total"), updTotals);
   $("#addRow").onclick = () => { rows.push({ qty: 1, name: "", price: 0 }); drawRows(); const ins = $("#rows").querySelectorAll('[data-f="name"]'); ins[ins.length - 1].focus(); };
   $("#pasteBtn").onclick = () => $("#pasteBox").classList.toggle("hide");
   $("#pasteGo").onclick = () => { const p = parseItems($("#items").value); if (!p.length) return toast("Teks belum terbaca", true); rows.push(...p); $("#items").value = ""; $("#pasteBox").classList.add("hide"); drawRows(); };
@@ -374,7 +375,7 @@ function renderBill() {
         <div style="text-align:right"><div class="num">${rp(it.price)}</div>
         <div class="act" style="margin-top:4px"><button class="sm ghost" data-edit="${it.id}">UBAH</button><button class="sm danger" data-del="${it.id}">HAPUS</button></div></div></div>`;
     }
-    h += `<div class="row ed" style="margin-top:12px;gap:6px"><input id="nName" placeholder="Nama item" class="grow"><input id="nPrice" placeholder="Harga" inputmode="numeric" style="width:110px"><button class="sm" id="add">+ TAMBAH</button></div>
+    h += `<div class="row ed" style="margin-top:12px;gap:6px"><input id="nName" placeholder="Nama item" class="grow"><span class="money sm" style="width:120px;flex:none"><input id="nPrice" placeholder="Harga" inputmode="numeric"></span><button class="sm" id="add">+ TAMBAH</button></div>
       <p class="small muted" style="margin-bottom:0">Kalau subtotal berubah, pajak tetap dihitung dari total akhir struk di tab Pengaturan.</p></div>`;
   }
 
@@ -383,15 +384,16 @@ function renderBill() {
       <label>JUDUL</label><input id="sTitle" value="${esc(bill.title)}">
       <div class="row"><div class="grow"><label>TEMPAT</label><input id="sPlace" value="${esc(bill.place || "")}"></div>
       <div class="grow"><label>TANGGAL</label><input id="sDate" type="date" value="${esc(bill.bill_date || "")}"></div></div>
-      <label>TOTAL AKHIR STRUK</label><input id="sTotal" inputmode="numeric" value="${Math.round(bill.total)}">
+      <label>TOTAL AKHIR STRUK</label><div class="money"><input id="sTotal" inputmode="numeric" value="${fmtNum(Math.round(bill.total))}"></div>
       <label>NAMA PENALANG</label><input id="sPn" value="${esc(bill.payer_name || "")}">
       <label>HP PENALANG</label><input id="sPp" inputmode="tel" value="${esc(bill.payer_phone || "")}">
       <label>INFO TRANSFER</label><textarea id="sPi" style="min-height:80px;font-family:inherit">${esc(bill.payment_info || "")}</textarea>
       <button class="block" id="saveSet" style="margin-top:16px">SIMPAN</button></div>
       <div class="card"><span class="label">KUNCI TAGIHAN</span><p class="small muted" style="margin-top:8px">Kunci setelah semua pilihan beres. Teman tetap bisa melihat dan konfirmasi transfer.</p>
-      <button class="block ${bill.locked ? "soft" : "gold"}" id="lock">${bill.locked ? "🔓 BUKA KUNCI" : "🔒 KUNCI TAGIHAN"}</button></div>
-      <div class="card"><span class="label">ZONA BAHAYA</span><div style="height:8px"></div><button class="block danger" id="delBill">HAPUS TAGIHAN</button></div>`;
+      <button class="block ${bill.locked ? "soft" : "gold"}" id="lock">${bill.locked ? "🔓 BUKA KUNCI" : "🔒 KUNCI TAGIHAN"}</button></div>`;
   }
+  h += `<div class="card"><span class="label">HAPUS TAGIHAN</span><p class="small muted" style="margin-top:8px">Menghapus tagihan ini beserta semua pilihan teman. Tidak bisa dibatalkan. Hanya host tagihan ini dan admin yang bisa menghapus.</p>
+    <button class="block danger" id="delBill">🗑️ HAPUS TAGIHAN</button></div>`;
   h += `<p style="text-align:center;margin-top:20px"><a href="admin.html" class="px" style="color:var(--acc);font-size:9px">◀ DAFTAR TAGIHAN</a></p>`;
   app.innerHTML = h;
   window.scrollTo(0, y);
@@ -429,11 +431,13 @@ function bind() {
   app.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
     const it = bill.items.find(i => i.id === b.dataset.edit); editing = true;
     const row = $("#it-" + it.id);
-    row.innerHTML = `<div class="row ed grow" style="gap:6px"><input class="grow" id="eN" value="${esc(it.name)}"><input id="eP" inputmode="numeric" style="width:110px" value="${Math.round(it.price)}">
+    row.innerHTML = `<div class="row ed grow" style="gap:6px"><input class="grow" id="eN" value="${esc(it.name)}"><span class="money sm" style="width:120px;flex:none"><input id="eP" inputmode="numeric" value="${fmtNum(Math.round(it.price))}"></span>
       <button class="sm" id="eS">SIMPAN</button><button class="sm ghost" id="eC">BATAL</button></div>`;
+    moneyInput($("#eP"));
     $("#eC").onclick = () => { editing = false; renderBill(); };
     $("#eS").onclick = () => { editing = false; act("sb_admin_item", { p_action: "update", p_item_id: it.id, p_name: $("#eN").value, p_price: parseInt($("#eP").value.replace(/\D/g, "")) }, "Item diperbarui"); };
   });
+  ["#sTotal", "#nPrice"].forEach(s => { const el = $(s); if (el) moneyInput(el); });
   const add = $("#add"); if (add) add.onclick = () => {
     const n = $("#nName").value.trim(), p = parseInt($("#nPrice").value.replace(/\D/g, ""));
     if (!n || isNaN(p)) return toast("Isi nama dan harga", true);
