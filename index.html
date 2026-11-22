@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Split Bill</title>
+<meta name="theme-color" content="#f6f7f5">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='9' fill='%230f7a55'/><text x='16' y='22' font-size='17' text-anchor='middle' fill='white' font-family='Arial' font-weight='700'>%25</text></svg>">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="dot">%</span> Split Bill</div>
+  <div id="app"><div class="spin"></div></div>
+</div>
+<div class="bar hide" id="bar"><div class="in row between">
+  <div><div class="small muted">Bagianmu</div><div class="big num" id="barOwe">Rp0</div><div class="small muted" id="barSub"></div></div>
+  <div style="text-align:right"><div class="saving" id="saving"></div><button id="barPay" class="sm">Cara bayar</button></div>
+</div></div>
+
+<script src="common.js"></script>
+<script>
+const code = (new URLSearchParams(location.search).get("b") || "").toUpperCase().trim();
+let token = store.get("sb_token");
+let lastJson = "", bill = null, me = null, mine = null, dirty = false, saving = false, saveTimer = null, joinMode = "auto";
+const app = $("#app");
+
+function statusTag(s) {
+  return s === "lunas" ? '<span class="tag ok">Lunas</span>'
+    : s === "sudah_transfer" ? '<span class="tag">Sudah transfer</span>'
+    : '<span class="tag grey">Belum bayar</span>';
+}
+
+async function load(silent) {
+  if (!code) return renderNoCode();
+  try {
+    const b = await rpc("sb_get_bill", { p_code: code, p_token: token });
+    if (token && !b.me) { token = null; store.del("sb_token"); }
+    if (dirty || saving) return; // jangan timpa pilihan yang belum tersimpan
+    const j = JSON.stringify(b);
+    if (silent && j === lastJson) return;
+    lastJson = j;
+    bill = b; me = b.me || null;
+    mine = me ? new Set(bill.items.filter(i => i.claimers.some(c => c.id === me.id)).map(i => i.id)) : null;
+    const y = window.scrollY; render(); window.scrollTo(0, y);
+  } catch (e) {
+    if (!silent) app.innerHTML = `<div class="card"><h2>Tagihan tidak bisa dibuka</h2><p class="muted">${esc(e.message)}</p></div>`;
+  }
+}
+
+function renderNoCode() {
+  app.innerHTML = `<h1>Buka tagihan</h1><p class="sub">Masukkan kode tagihan dari temanmu.</p>
+  <div class="card"><label>Kode tagihan</label><input id="c" placeholder="Contoh: JT5CCM" autocapitalize="characters">
+  <button class="block" style="margin-top:12px" id="go">Buka</button></div>`;
+  $("#go").onclick = () => { const v = $("#c").value.trim(); if (v) location.search = "?b=" + encodeURIComponent(v.toUpperCase()); };
+}
+
+function head() {
+  const meta = [bill.place, fmtDate(bill.bill_date)].filter(Boolean).map(esc).join(" · ");
+  return `<h1>${esc(bill.title)}</h1><div class="sub">${meta}</div>
+    <div class="card row between"><div><div class="small muted">Total struk</div><div class="strong num" style="font-size:20px">${rp(bill.total)}</div></div>
+    ${bill.payer_name ? `<div style="text-align:right"><div class="small muted">Ditalangi oleh</div><div class="strong">${esc(bill.payer_name)}</div></div>` : ""}</div>`;
+}
+
+function render() {
+  $("#bar").classList.add("hide");
+  if (!me || !me.is_member) return renderJoin();
+  renderMain();
+}
+
+function renderJoin() {
+  const known = me && !me.is_member && joinMode === "auto";
+  if (known) {
+    app.innerHTML = head() + `<div class="card"><h2>Halo, ${esc(me.name)} 👋</h2>
+      <p class="muted" style="margin-top:0">Kamu sudah pernah masuk di HP ini.</p>
+      <button class="block" id="quick">Gabung sebagai ${esc(me.name)}</button>
+      <p class="small" style="text-align:center;margin-bottom:0"><button class="link" id="other">Bukan ${esc(me.name)}? Masuk dengan nomor lain</button></p></div>`;
+    $("#quick").onclick = async (e) => {
+      e.target.disabled = true;
+      try { await rpc("sb_join_token", { p_token: token, p_code: code }); await load(); }
+      catch (err) { toast(err.message, true); e.target.disabled = false; }
+    };
+    $("#other").onclick = () => { joinMode = "form"; renderJoin(); };
+    return;
+  }
+  if (bill.locked) {
+    app.innerHTML = head() + `<div class="notice">Tagihan ini sudah dikunci, jadi tidak bisa menambah peserta baru.</div>`;
+    return;
+  }
+  app.innerHTML = head() + `<div class="card"><h2>Masuk untuk memilih pesananmu</h2>
+    <label>Nama panggilan</label><input id="nm" maxlength="40" autocomplete="name" value="${esc(store.get("sb_name") || "")}">
+    <label>Nomor HP (WhatsApp)</label><input id="ph" inputmode="tel" autocomplete="tel" placeholder="08xxxxxxxxxx" value="${esc(store.get("sb_phone") || "")}">
+    <label>PIN 4 angka</label><input id="pin" class="pin" inputmode="numeric" maxlength="4" autocomplete="off" type="password" placeholder="••••">
+    <p class="small muted" style="margin:8px 0 0">Pertama kali? PIN ini kamu buat sekarang. Sudah pernah? Pakai PIN yang sama. PIN menjaga agar pilihanmu tidak bisa diubah orang lain.</p>
+    <button class="block" id="join" style="margin-top:14px">Masuk</button>
+    <p class="small muted" style="margin-bottom:0">Nomor HP hanya terlihat oleh admin untuk keperluan penagihan.</p></div>`;
+  $("#pin").addEventListener("input", (e) => (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4)));
+  $("#join").onclick = async (e) => {
+    const nm = $("#nm").value.trim(), ph = $("#ph").value.trim(), pin = $("#pin").value;
+    if (!nm) return toast("Isi nama dulu", true);
+    if (pin.length !== 4) return toast("PIN harus 4 angka", true);
+    e.target.disabled = true; e.target.textContent = "Memproses...";
+    try {
+      const r = await rpc("sb_join", { p_code: code, p_name: nm, p_phone: ph, p_pin: pin });
+      token = r.token; store.set("sb_token", token); store.set("sb_name", nm); store.set("sb_phone", ph);
+      joinMode = "auto"; await load();
+    } catch (err) { toast(err.message, true); e.target.disabled = false; e.target.textContent = "Masuk"; }
+  };
+}
+
+function localBill() {
+  // salinan tagihan dengan pilihanku yang terbaru (optimistis, sebelum tersimpan)
+  const items = bill.items.map(it => {
+    const others = it.claimers.filter(c => c.id !== me.id);
+    return { ...it, claimers: mine.has(it.id) ? [...others, { id: me.id, name: me.name }] : others };
+  });
+  return { ...bill, items };
+}
+
+function renderMain() {
+  const lb = localBill();
+  const my = personBreakdown(lb, me.id);
+  const meMember = bill.members.find(m => m.id === me.id) || {};
+  const unclaimed = lb.items.filter(i => i.claimers.length === 0);
+  const adjLabel = bill.adjust > 0 ? "pajak & service" : bill.adjust < 0 ? "diskon" : "";
+
+  let h = head();
+  if (bill.locked) h += `<div class="notice">Tagihan sudah dikunci admin. Pilihan tidak bisa diubah lagi.</div>`;
+  h += `<div class="card"><div class="row between"><h2 style="margin:0">Pilih pesananmu</h2>
+          <button class="link small" id="logout">Bukan ${esc(me.name)}?</button></div>
+        <p class="small muted" style="margin:4px 0 0">Centang yang kamu makan atau minum. Kalau patungan, centang juga; harganya otomatis dibagi rata.</p>`;
+  for (const it of lb.items) {
+    const on = mine.has(it.id), n = it.claimers.length;
+    const chips = it.claimers.map(c => `<span class="chip ${c.id === me.id ? "me" : ""}">${esc(c.id === me.id ? "Kamu" : c.name)}</span>`).join("");
+    h += `<div class="item ${on ? "on" : ""} ${bill.locked ? "locked" : ""}" data-id="${it.id}">
+      <div class="check"></div>
+      <div class="grow"><div class="row between"><div class="strong">${esc(it.name)}</div><div class="num">${rp(it.price)}</div></div>
+      ${n > 1 ? `<div class="small muted">Dibagi ${n} orang · ${rp(it.price / n)}/orang</div>` : ""}
+      ${chips ? `<div class="chips">${chips}</div>` : `<div class="small muted">Belum ada yang pilih</div>`}</div></div>`;
+  }
+  if (unclaimed.length) h += `<div class="notice">${unclaimed.length} item belum dipilih siapa pun (${rp(unclaimed.reduce((a, i) => a + i.price, 0))}).</div>`;
+  h += `</div>`;
+
+  h += `<div class="card"><h2>Rincian bagianmu</h2><div class="lines">`;
+  if (!my.lines.length) h += `<div class="muted small">Belum ada item yang kamu pilih.</div>`;
+  for (const l of my.lines) h += `<div class="l"><span>${esc(l.name)}${l.n > 1 ? ` <span class="muted">(÷${l.n})</span>` : ""}</span><span class="num">${rp(l.part)}</span></div>`;
+  if (my.lines.length) {
+    h += `<div class="hr"></div><div class="l"><span>Subtotal</span><span class="num">${rp(my.sub)}</span></div>`;
+    if (adjLabel) h += `<div class="l"><span>Bagian ${adjLabel}</span><span class="num">${my.adj < 0 ? "−" : ""}${rp(Math.abs(my.adj))}</span></div>`;
+    h += `<div class="l strong"><span>Total bayar</span><span class="num">${rp(my.owe)}</span></div>`;
+  }
+  h += `</div>${adjLabel ? `<p class="small muted" style="margin-bottom:0">Pajak, service, dan diskon dibagi sebanding dengan nilai pesanan masing-masing, jadi jumlah semua orang pas dengan total struk.</p>` : ""}</div>`;
+
+  h += `<div class="card" id="pay"><h2>Pembayaran</h2>`;
+  if (meMember.is_payer) {
+    h += `<div class="notice ok" style="margin-top:0">Kamu penalang tagihan ini. Bagianmu sudah kamu bayar langsung ke kasir.</div>`;
+  } else {
+    h += `<div class="small muted">Transfer ke ${esc(bill.payer_name || "penalang")}</div>`;
+    if (bill.payment_info) h += `<div class="row between" style="margin-top:6px"><div class="strong grow" style="white-space:pre-line">${esc(bill.payment_info)}</div><button class="sm soft" id="cpy">Salin</button></div>`;
+    h += `<div class="row between" style="margin-top:14px"><span>Status kamu</span>${statusTag(meMember.status)}</div>`;
+    if (meMember.status === "belum") h += `<button class="block" id="paid" style="margin-top:12px" ${my.owe ? "" : "disabled"}>Saya sudah transfer ${rp(my.owe)}</button>`;
+    else if (meMember.status === "sudah_transfer") h += `<p class="small muted">Menunggu konfirmasi ${esc(bill.payer_name || "penalang")}. <button class="link small" id="unpaid">Batalkan</button></p>`;
+  }
+  h += `</div>`;
+
+  h += `<div class="card"><h2>Yang sudah gabung (${bill.members.length})</h2><table>`;
+  for (const m of bill.members) {
+    const owe = m.id === me.id ? my.owe : m.owe;
+    h += `<tr><td>${esc(m.name)}${m.id === me.id ? ' <span class="muted">(kamu)</span>' : ""}</td><td class="r num">${rp(owe)}</td><td class="r">${m.is_payer ? '<span class="tag ok">Penalang</span>' : statusTag(m.status)}</td></tr>`;
+  }
+  h += `</table></div><div class="foot">Data diperbarui otomatis setiap beberapa detik.</div>`;
+  app.innerHTML = h;
+
+  $("#bar").classList.remove("hide");
+  $("#barOwe").textContent = meMember.is_payer ? "Penalang" : rp(my.owe);
+  $("#barSub").textContent = my.lines.length ? `${my.lines.length} item${adjLabel ? " + " + adjLabel : ""}` : "Belum pilih item";
+  $("#barPay").onclick = () => $("#pay").scrollIntoView({ behavior: "smooth" });
+
+  if (!bill.locked) app.querySelectorAll(".item").forEach(el => el.onclick = () => toggle(el.dataset.id));
+  $("#logout").onclick = () => { store.del("sb_token"); token = null; me = null; joinMode = "form"; render(); };
+  const c = $("#cpy"); if (c) c.onclick = () => copyText(bill.payment_info);
+  const p = $("#paid"); if (p) p.onclick = () => setStatus("sudah_transfer");
+  const u = $("#unpaid"); if (u) u.onclick = () => setStatus("belum");
+}
+
+function toggle(id) {
+  mine.has(id) ? mine.delete(id) : mine.add(id);
+  dirty = true; $("#saving").textContent = "Menyimpan...";
+  const y = window.scrollY; renderMain(); window.scrollTo(0, y);
+  clearTimeout(saveTimer); saveTimer = setTimeout(save, 600);
+}
+
+async function save() {
+  if (saving) { saveTimer = setTimeout(save, 300); return; }
+  saving = true; dirty = false;
+  try {
+    const b = await rpc("sb_set_claims", { p_token: token, p_code: code, p_item_ids: [...mine] });
+    if (!dirty) { bill = b; me = b.me; const y = window.scrollY; renderMain(); window.scrollTo(0, y); }
+    $("#saving").textContent = "Tersimpan ✓";
+  } catch (e) {
+    toast(e.message, true); $("#saving").textContent = "Gagal menyimpan";
+    dirty = false; saving = false; return load();
+  }
+  saving = false;
+}
+
+async function setStatus(s) {
+  try { bill = await rpc("sb_set_my_status", { p_token: token, p_code: code, p_status: s }); me = bill.me; renderMain(); }
+  catch (e) { toast(e.message, true); }
+}
+
+load();
+setInterval(() => { if (document.visibilityState === "visible" && bill && me && me.is_member) load(true); }, 5000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && bill) load(true); });
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+name: Jaga Supabase tetap aktif
+on:
+  schedule:
+    - cron: "17 2 */3 * *"   # tiap 3 hari, 09.17 WIB
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping database
+        run: |
+          curl -fsS -X POST "https://mdhnvznrtjzhgcvletbq.supabase.co/rest/v1/rpc/sb_ping" \
+            -H "apikey: sb_publishable_qPeLUrizilLAUD5OGoJXHA_ZR3xVQUY" \
+            -H "Content-Type: application/json" -d '{}'
