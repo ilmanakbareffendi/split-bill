@@ -74,21 +74,33 @@ Deno.serve(async (req) => {
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) return json({ error: "Kunci Gemini belum dipasang" }, 500);
   // urutan model: utama, lalu cadangan bila model sedang penuh atau tidak tersedia
-  const models = (Deno.env.get("GEMINI_MODELS") || "gemini-flash-latest,gemini-flash-lite-latest,gemini-3.1-flash-lite,gemini-2.5-flash")
+  const models = (Deno.env.get("GEMINI_MODELS") || "gemini-flash-lite-latest,gemini-flash-latest,gemini-2.5-flash-lite,gemini-2.5-flash")
     .split(",").map((m) => m.trim()).filter(Boolean);
   const payload = JSON.stringify({
     contents: [{ parts: [{ inline_data: { mime_type: mime, data: image } }, { text: PROMPT }] }],
     generationConfig: { temperature: 0, responseMimeType: "application/json", responseSchema: SCHEMA },
   });
   let gj: any = null, model = "", lastErr = "";
+  const deadline = Date.now() + 100_000; // batas wall clock paket gratis 150 detik
   outer: for (const m of models) {
     for (let attempt = 0; attempt < 2; attempt++) {
-      const g = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
-        method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" }, body: payload,
-      });
+      const left = deadline - Date.now();
+      if (left < 5000) break outer;
+      const t0 = Date.now();
+      let g: Response;
+      try {
+        g = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`, {
+          method: "POST", headers: { "x-goog-api-key": key, "Content-Type": "application/json" }, body: payload,
+          signal: AbortSignal.timeout(Math.min(25_000, left)),
+        });
+      } catch (e) {
+        lastErr = `${m}: timeout/err ${String(e).slice(0, 80)}`; console.error(lastErr);
+        break; // model lambat: pindah ke model berikutnya
+      }
       const body = await g.json().catch(() => null);
+      console.log(`${m} -> ${g.status} in ${Date.now() - t0}ms`);
       if (g.ok) { gj = body; model = m; break outer; }
-      lastErr = `${m}: ${g.status} ${body?.error?.message || ""}`.slice(0, 300);
+      lastErr = `${m}: ${g.status} ${body?.error?.message || ""}`.slice(0, 300); console.error(lastErr);
       if (g.status === 503 || g.status === 500) { if (attempt === 0) { await new Promise((r) => setTimeout(r, 1200)); continue; } }
       break; // 404 model tidak ada, 429 kuota model habis, dll: langsung ke model berikutnya
     }
