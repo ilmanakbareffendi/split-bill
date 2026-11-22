@@ -333,7 +333,8 @@ function renderBill() {
   <div class="card"><span class="label gold">LINK UNTUK PARTY</span>
     <div class="strong" style="word-break:break-all;margin:8px 0 12px">${esc(billLink(bill.code))}</div>
     <div class="row"><button class="soft grow" id="cpLink">SALIN LINK</button>
-    <a class="btn wa grow" target="_blank" href="https://wa.me/?text=${encodeURIComponent(groupText())}">KIRIM KE WA</a></div></div>
+    <a class="btn wa grow" target="_blank" href="https://wa.me/?text=${encodeURIComponent(groupText())}">KIRIM KE WA</a></div>
+    ${!isAdmin ? `<a class="btn block gold" href="./?b=${bill.code}" style="margin-top:10px">🍽️ PILIH PESANANKU</a>` : ""}</div>
   <div class="row" style="margin-top:14px;gap:8px">
     <div class="stat gold"><div class="k">STRUK</div><div class="v num">${rp(bill.total)}</div></div>
     <div class="stat"><div class="k">TERKLAIM</div><div class="v num">${rp(claimedOwe)}</div></div>

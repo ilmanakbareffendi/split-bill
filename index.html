@@ -186,7 +186,7 @@ function renderMain(pulseId) {
 
   h += `<div class="card" id="pay"><span class="label gold">MISI: BAYAR</span><div style="height:6px"></div>`;
   if (meMember.is_payer) {
-    h += `<div class="notice ok" style="margin-top:0"><span>💳</span><div><b>KAMU PENALANG</b>Kamu yang bayar ke kasir. Tunggu teman transfer ke kamu.</div></div>`;
+    h += `<div class="notice ok" style="margin-top:0"><span>💳</span><div><b>KAMU PENALANG</b>Kamu sudah bayar ke kasir, jadi bagianmu (${rp(my.owe)}) tidak perlu ditransfer. Tetap centang pesananmu supaya tagihan teman terhitung benar.</div></div>`;
   } else {
     h += `<div class="small muted">Transfer ke <b style="color:var(--ink)">${esc(bill.payer_name || "penalang")}</b></div>`;
     if (bill.payment_info) h += `<div class="row between" style="margin-top:8px"><div class="strong grow" style="white-space:pre-line;font-size:18px">${esc(bill.payment_info)}</div><button class="sm soft" id="cpy">SALIN</button></div>`;
@@ -208,7 +208,8 @@ function renderMain(pulseId) {
 
   $("#bar").classList.remove("hide");
   $("#barAv").innerHTML = av(me.avatar);
-  if (meMember.is_payer) { $("#barOwe").textContent = "PENALANG"; $("#barOwe").dataset.v = 0; } else countUp($("#barOwe"), my.owe);
+  countUp($("#barOwe"), my.owe);
+  $("#bar .lbl").textContent = meMember.is_payer ? "BAGIANMU · PENALANG" : "BAGIANMU";
   $("#barSub").textContent = my.lines.length ? `${my.lines.length} item${adjLabel ? " + " + adjLabel : ""}` : "Belum ambil item";
   $("#barPay").onclick = () => $("#pay").scrollIntoView({ behavior: "smooth", block: "center" });
 
