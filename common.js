@@ -178,3 +178,8 @@ function countUp(el, to) {
   };
   requestAnimationFrame(step);
 }
+
+// kredit pembuat, tampil di bagian bawah semua halaman
+const CREDIT = `<div class="credit"><div class="px">SPLIT BILL TONGKRONGAN!!</div>
+  <p>Dibuat oleh <b>Ilman Akbar Effendi</b> untuk patungan bareng teman.</p>
+  <p>Ada kendala atau saran? Hubungi Ilman langsung.</p></div>`;

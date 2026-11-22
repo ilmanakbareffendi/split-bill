@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Split Bill</title>
+<title>Split Bill Tongkrongan!!</title>
 <meta name="theme-color" content="#f4f8f3">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' shape-rendering='crispEdges'><rect width='16' height='16' fill='%231b1b2f'/><rect x='2' y='2' width='12' height='12' fill='%23ffc400'/><rect x='10' y='4' width='2' height='8' fill='%23d9a300'/><rect x='5' y='5' width='2' height='2' fill='%231b1b2f'/><rect x='9' y='9' width='2' height='2' fill='%231b1b2f'/><rect x='5' y='9' width='2' height='2' fill='%231b1b2f'/><rect x='7' y='7' width='2' height='2' fill='%231b1b2f'/><rect x='9' y='5' width='2' height='2' fill='%231b1b2f'/></svg>">
 <link rel="preload" href="fonts/press-start-2p.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css?v=20261122d">
+<link rel="stylesheet" href="style.css?v=20261122e">
 </head>
 <body>
 <div class="wrap">
-  <div class="topbar"><div class="brand"><span class="logo">%</span> SPLIT BILL</div><button class="iconbtn" id="snd"></button></div>
+  <div class="topbar"><a class="brand" href="./"><span class="logo">%</span> SPLIT BILL</a><button class="iconbtn" id="snd"></button></div>
   <div id="app"></div>
 </div>
 <div class="bar hide" id="bar"><div class="in">
@@ -20,8 +20,8 @@
   <div><div class="saving" id="saving"></div><button id="barPay" class="gold">BAYAR ▶</button></div>
 </div></div>
 
-<script src="avatars.js?v=20261122d"></script>
-<script src="common.js?v=20261122d"></script>
+<script src="avatars.js?v=20261122e"></script>
+<script src="common.js?v=20261122e"></script>
 <script>
 const code = (new URLSearchParams(location.search).get("b") || "").toUpperCase().trim();
 let token = store.get("sb_token");
@@ -57,17 +57,13 @@ async function load(silent) {
 
 function renderNoCode() {
   app.innerHTML = `<div class="card title-card"><div class="party">${AVATAR_KEYS.map(k => `<span class="av bob">${av(k)}</span>`).join("")}</div>
-    <h1>SPLIT BILL</h1><p class="sub" style="margin-top:0">Patungan makan tanpa ribet. Foto struknya, bagikan link, biar tiap orang centang pesanannya sendiri.</p>
+    <h1>SPLIT BILL<br>TONGKRONGAN!!</h1><p class="sub" style="margin-top:0">Patungan makan tanpa ribet. Foto struknya, bagikan link, biar tiap orang centang pesanannya sendiri.</p>
     <a class="btn block gold" href="admin.html" style="margin-top:14px">📸 BUAT TAGIHAN</a></div>
     <div class="card"><span class="label">PUNYA KODE?</span>
     <p class="small muted" style="margin-top:8px">Masukkan kode tagihan dari temanmu.</p>
     <input id="c" placeholder="KODE" autocapitalize="characters" class="pin" style="letter-spacing:.3em" maxlength="8">
     <button class="block" style="margin-top:14px" id="go">▶ MASUK</button></div>
-    <div class="credit">
-      <div class="px">SPLIT BILL</div>
-      <p>Dibuat oleh <b>Ilman Akbar Effendi</b> untuk patungan bareng teman.</p>
-      <p>Ada kendala atau saran? Hubungi Ilman langsung.</p>
-    </div>`;
+    ${CREDIT}`;
   const go = () => { const v = $("#c").value.trim(); if (v) location.search = "?b=" + encodeURIComponent(v.toUpperCase()); };
   $("#go").onclick = go;
   $("#c").onkeydown = (e) => { if (e.key === "Enter") go(); };
@@ -130,7 +126,7 @@ function renderJoin() {
     <label>PIN RAHASIA (4 ANGKA)</label><input id="pin" class="pin" inputmode="numeric" maxlength="4" autocomplete="off" type="password" placeholder="····">
     <p class="small muted" style="margin:8px 0 0">Pertama kali? Buat PIN sekarang. Sudah pernah? Pakai PIN yang sama. PIN menjaga pilihanmu supaya tidak diubah orang lain.</p>
     <button class="block gold" id="join" style="margin-top:16px">▶ MULAI</button>
-    <p class="small muted" style="margin-bottom:0;text-align:center">Nomor HP hanya terlihat oleh host tagihan untuk penagihan.</p></div>`;
+    <p class="small muted" style="margin-bottom:0;text-align:center">Nomor HP hanya terlihat oleh host tagihan untuk penagihan.</p></div>${CREDIT}`;
   bindPicker();
   $("#pin").addEventListener("input", (e) => (e.target.value = e.target.value.replace(/\D/g, "").slice(0, 4)));
   $("#join").onclick = async (e) => {
@@ -211,7 +207,7 @@ function renderMain(pulseId) {
     h += `<tr><td style="width:34px"><span class="av bob" style="width:30px;height:30px;animation-delay:${(m.name.length % 5) * .2}s">${av(m.avatar)}</span></td>
       <td>${esc(m.name)}${m.id === me.id ? ' <span class="muted small">(kamu)</span>' : ""}</td><td class="r num px" style="font-size:9px">${rp(owe)}</td><td class="r">${statusTag(m)}</td></tr>`;
   }
-  h += `</table></div><div class="foot"><span class="px">SPLIT BILL</span><br><button class="link small" id="logout">Bukan ${esc(me.name)}? Ganti pemain</button></div>`;
+  h += `</table></div><div class="foot"><button class="link small" id="logout">Bukan ${esc(me.name)}? Ganti pemain</button></div>${CREDIT}`;
   app.innerHTML = h;
 
   $("#bar").classList.remove("hide");
