@@ -12,7 +12,8 @@ Acuan: Standar Pengembangan Web CEDC UNPRI v1.0.
 - `assets/js/utils/hitung.js`: fungsi hitung murni `personBreakdown`, diuji di `tests/hitung.test.js`.
 - `common.js`: fungsi bersama, termasuk `esc()`, format rupiah, suara, dan efek.
 - Semua skrip adalah skrip klasik yang dimuat berurutan dan berbagi nama global. Setiap tag memakai `?v=` untuk memaksa browser mengambil versi baru; naikkan nilainya setiap kali file JavaScript atau CSS berubah.
-- `style.css`, `avatars.js`, `fonts/`.
+- `style.css`, `assets/css/admin.css`, `avatars.js`, `fonts/`.
+- Content Security Policy dipasang lewat tag meta di kedua HTML. Koneksi keluar hanya ke proyek Supabase; skrip, gaya, dan huruf hanya dari repo sendiri. Bila menambah sumber luar, perbarui CSP di kedua file.
 - `supabase/schema.sql`: tabel `sb_*`, RLS, dan fungsi RPC. PIN disimpan sebagai hash bcrypt dengan penguncian setelah beberapa kali salah.
 - `supabase/functions/scan-struk/`: Edge Function untuk membaca struk.
 - `.github/workflows/keep-alive.yml`: menjaga proyek Supabase gratis agar tidak dijeda.

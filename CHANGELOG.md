@@ -4,6 +4,12 @@ Semua perubahan penting pada project ini dicatat di sini. Format mengikuti [Keep
 
 ## [Belum dirilis]
 
+### Keamanan
+- Content Security Policy di `index.html` dan `admin.html`: skrip hanya dari repo sendiri, koneksi keluar hanya ke Supabase.
+
+### Diubah
+- Blok `<style>` di `admin.html` dipindah ke `assets/css/admin.css`.
+
 ### Diubah
 - Skrip di dalam `index.html` dan `admin.html` dipindah ke file terpisah di `assets/js/`. `admin.html` kini 55 baris dan logikanya terbagi ke tiga file (masuk dan daftar, tagihan baru, detail tagihan). Tampilan tidak berubah: diuji dengan membandingkan lima halaman sebelum dan sesudah.
 - Fungsi `personBreakdown` dipindah dari `common.js` ke `assets/js/utils/hitung.js`.

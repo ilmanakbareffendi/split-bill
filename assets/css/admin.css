@@ -1,0 +1,25 @@
+  .billrow { display: block; text-decoration: none; color: inherit; }
+  .stat { flex: 1; background: #fff; border: var(--b); border-radius: 10px; padding: 10px; box-shadow: 3px 3px 0 var(--ink); }
+  .stat .k { font-family: var(--px); font-size: 7px; color: var(--muted); }
+  .stat .v { font-family: var(--px); font-size: 11px; margin-top: 8px; }
+  .stat.gold { background: var(--gold-soft); }
+  .player { border-top: 2px dashed var(--line); padding: 14px 0 4px; margin-top: 10px; }
+  .player:first-of-type { border-top: 0; }
+  .billrow { transition: transform .2s var(--spring); }
+  .billrow:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--ink); }
+  .act { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+  .ed input { padding: 8px 10px; font-size: 14px; }
+  .prev td { padding: 6px; }
+  .err { color: var(--red); }
+  .tabs { display: flex; gap: 6px; margin-top: 14px; overflow-x: auto; }
+  .tabs { gap: 8px; padding-bottom: 6px; }
+  .tabs button { background: #fff; color: var(--ink); white-space: nowrap; }
+  .tabs button.on { background: var(--ink); color: var(--gold); }
+  .billrow.archived { opacity: .7; box-shadow: 2px 2px 0 var(--ink); }
+  .paybox { background: #fff; color: var(--ink); font-size: 9px; padding: 9px 12px 9px 9px; gap: 9px; box-shadow: 0 4px 0 #cfd6cd, 0 4px 0 2px var(--ink); margin-bottom: 4px; }
+  .paybox .pb { width: 22px; height: 22px; border: var(--b); border-radius: 5px; background: #fff; display: grid; place-items: center; font-size: 12px; flex: none; }
+  .paybox.on { background: var(--soft); color: var(--deep); box-shadow: 0 4px 0 var(--line-g), 0 4px 0 2px var(--ink); }
+  .paybox.on .pb { background: var(--acc); color: #fff; border-color: var(--ink); }
+  .paybox.wait { background: var(--gold-soft); color: var(--gold-ink); box-shadow: 0 4px 0 var(--gold-s), 0 4px 0 2px var(--ink); animation: nudge 1.6s ease-in-out infinite; }
+  .paybox.wait .pb { background: var(--gold); }
+  @keyframes nudge { 0%, 100% { transform: none; } 50% { transform: translateY(-2px); } }
