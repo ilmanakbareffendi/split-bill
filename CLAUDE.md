@@ -6,9 +6,12 @@ Pemilik: Career and Alumni Relations Unit, Pusat Pengembangan Karir dan Kewiraus
 Acuan: Standar Pengembangan Web CEDC UNPRI v1.0.
 
 ## Struktur saat ini
-- `index.html`: halaman teman (sekitar 270 baris).
-- `admin.html`: halaman host dan admin (sekitar 520 baris, perlu dipecah).
-- `common.js`: fungsi bersama, termasuk `esc()`, format rupiah, dan pembagian per orang.
+- `index.html` dan `admin.html`: markup saja.
+- `assets/js/features/teman.js`: logika halaman teman.
+- `assets/js/features/admin-masuk.js`, `admin-tagihan-baru.js`, `admin-detail.js`, dan `assets/js/admin-main.js`: halaman host dan admin.
+- `assets/js/utils/hitung.js`: fungsi hitung murni `personBreakdown`, diuji di `tests/hitung.test.js`.
+- `common.js`: fungsi bersama, termasuk `esc()`, format rupiah, suara, dan efek.
+- Semua skrip adalah skrip klasik yang dimuat berurutan dan berbagi nama global. Setiap tag memakai `?v=` untuk memaksa browser mengambil versi baru; naikkan nilainya setiap kali file JavaScript atau CSS berubah.
 - `style.css`, `avatars.js`, `fonts/`.
 - `supabase/schema.sql`: tabel `sb_*`, RLS, dan fungsi RPC. PIN disimpan sebagai hash bcrypt dengan penguncian setelah beberapa kali salah.
 - `supabase/functions/scan-struk/`: Edge Function untuk membaca struk.
@@ -53,4 +56,4 @@ Teks antarmuka dan dokumentasi memakai bahasa Indonesia. Jangan memakai tanda pi
 ## Perintah
 
 - Jalankan lokal: `python3 -m http.server 8000`, lalu buka `http://localhost:8000`
-- Pengujian (bila ada): `node --test tests/`
+- Pengujian: `node --test` (menjalankan semua file `tests/*.test.js`)
