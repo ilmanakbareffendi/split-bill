@@ -62,21 +62,6 @@ async function copyText(t) {
   }
 }
 
-// Rincian per orang dari data tagihan: item yang diklaim, porsi, dan total.
-function personBreakdown(bill, personId) {
-  const factor = bill.subtotal > 0 ? bill.total / bill.subtotal : 0;
-  const lines = [];
-  let sub = 0;
-  for (const it of bill.items) {
-    if (!it.claimers.some((c) => c.id === personId)) continue;
-    const n = it.claimers.length;
-    const part = it.price / n;
-    sub += part;
-    lines.push({ name: it.name, n, part });
-  }
-  return { lines, sub, adj: sub * (factor - 1), owe: Math.round(sub * factor) };
-}
-
 function billLink(code) {
   return new URL("./?b=" + code, location.href).href.replace(/admin\.html/, "");
 }

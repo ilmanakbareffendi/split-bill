@@ -12,9 +12,13 @@ Bagi tagihan makan bareng: admin membuat tagihan dari struk, teman membuka link,
 2. Di folder repo, jalankan `python3 -m http.server 8000`.
 3. Buka `http://localhost:8000/admin.html` untuk host, atau `http://localhost:8000/?b=KODE` untuk teman.
 
+## Pengujian
+Jalankan `node --test` di folder repo. Uji mencakup pembagian item patungan, pajak dan service, diskon, dan pembulatan.
+
 ## Struktur
-- `index.html`: halaman teman.
-- `admin.html`: halaman host dan admin.
+- `index.html`: halaman teman. Logikanya di `assets/js/features/teman.js`.
+- `admin.html`: halaman host dan admin. Logikanya di `assets/js/features/admin-*.js`.
+- `assets/js/utils/hitung.js`: perhitungan bagian tiap orang, diuji otomatis di `tests/`.
 - `common.js`, `style.css`, `avatars.js`, `fonts/`: kode dan aset bersama.
 - `supabase/schema.sql`: struktur database, RLS, dan fungsi.
 - `supabase/functions/scan-struk/`: Edge Function pembaca struk.
